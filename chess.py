@@ -1,8 +1,10 @@
 # -*- encoding: utf-8 -*-
 import enum
-import board
 import os
 import math
+import time
+
+global board
 
 class Color(enum.Enum):
     WHITE = 0
@@ -34,21 +36,10 @@ pawns = {
 }
 
 def init_board():
-    return (
+    global board
+
+    board = (
         [
-            [
-                (Color.WHITE, Piece.ROOK),
-                (Color.WHITE, Piece.KNIGHT),
-                (Color.WHITE, Piece.BISHOP),
-                (Color.WHITE, Piece.QUEEN),
-                (Color.WHITE, Piece.KING),
-                (Color.WHITE, Piece.BISHOP),
-                (Color.WHITE, Piece.KNIGHT),
-                (Color.WHITE, Piece.ROOK),
-            ],
-            [(Color.WHITE, Piece.PAWN) for _ in range(8)],
-            *[[None] * 8 for _ in range(4)],
-            [(Color.BLACK, Piece.PAWN) for _ in range(8)],
             [
                 (Color.BLACK, Piece.ROOK),
                 (Color.BLACK, Piece.KNIGHT),
@@ -59,37 +50,89 @@ def init_board():
                 (Color.BLACK, Piece.KNIGHT),
                 (Color.BLACK, Piece.ROOK),
             ],
+            [(Color.BLACK, Piece.PAWN) for _ in range(8)],
+            *[[None] * 8 for _ in range(4)],
+            [(Color.WHITE, Piece.PAWN) for _ in range(8)],
+            [
+                (Color.WHITE, Piece.ROOK),
+                (Color.WHITE, Piece.KNIGHT),
+                (Color.WHITE, Piece.BISHOP),
+                (Color.WHITE, Piece.QUEEN),
+                (Color.WHITE, Piece.KING),
+                (Color.WHITE, Piece.BISHOP),
+                (Color.WHITE, Piece.KNIGHT),
+                (Color.WHITE, Piece.ROOK),
+            ],
         ]
     )
 
-def display_board(b):
+def display_board(msg=""):
+	global board
+
 	os.system('cls' if os.name == 'nt' else 'clear')
 
 	white_cell = True
 
 	print()
 
-	for row in b:
-		columns = int(os.popen('stty size', 'r').read().split()[1]) - 8
-		spaces = math.floor(columns/2) - 5
+	row_num = 8
+
+	for row in board:
+		columns = int(os.popen('stty size', 'r').read().split()[1]) - 16
+		spaces = math.floor(columns/2) - 8
 		for x in range(spaces):
 			print(" ", end="")
 
-		row_string = ""
+		row_string = str(row_num) + " "
 		for current in row:
 			if(white_cell):
-				row_string += '\033[47m' + pawns[current] + " " + '\033[0m'
+				row_string += '\033[47m' + " " + pawns[current] + "  " + '\033[0m'
 			else:
-				row_string += '\033[40m' + pawns[current] + " " + '\033[0m'
+				row_string += '\033[40m' + " " + pawns[current] + "  " + '\033[0m'
 
 			white_cell = not white_cell
 
 		print(row_string)
 
 		white_cell = not white_cell
+		row_num -= 1
 
+	for x in range(spaces + 3):
+		print(" ", end="")
+
+	for letter in ["a", "b", "c", "d", "e", "f", "g", "h"]:
+		print(letter, end="   ")
+
+	print("\n")
+	print(msg)
 	print()
 
 
-b = init_board()
-display_board(b)
+def is_valid(move):
+	pass
+
+def move():
+	move = input(" Insert move in long algebraic notation: ")
+   	
+	move = [char for char in move]  
+	if(len(move)!=4 or 
+		ord(move[0]) not in range(ord('a'), ord('i')) or 
+		ord(move[2]) not in range(ord('a'), ord('i')) or 
+		int(move[1]) not in range(1, 9) or
+		int(move[3]) not in range(1, 9)):
+		
+		return " Error: Not long algebraic notation (e.g. a2a4)"
+
+	is_valid(move)
+
+	return ""
+
+def play():
+	msg = ""
+	while True:
+		display_board(msg)
+		msg = move()
+
+
+init_board()
+play()
