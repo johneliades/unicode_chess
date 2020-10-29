@@ -5,6 +5,9 @@ import math
 import time
 
 global board
+global white_turn
+
+white_turn = True
 
 class Color(enum.Enum):
     WHITE = 0
@@ -19,7 +22,7 @@ class Piece(enum.Enum):
     KING = enum.auto()
     QUEEN = enum.auto()
 
-pawns = {
+pieces = {
     (Color.WHITE, Piece.PAWN): u'♟',
     (Color.WHITE, Piece.ROOK): u'♜',
     (Color.WHITE, Piece.KNIGHT): u'♞',
@@ -32,7 +35,7 @@ pawns = {
     (Color.BLACK, Piece.BISHOP):  u'♗',
     (Color.BLACK, Piece.KING): u'♔',
     (Color.BLACK, Piece.QUEEN): u'♕',
-    None: " ",
+   	(None, None): " ",
 }
 
 def init_board():
@@ -51,7 +54,7 @@ def init_board():
                 (Color.BLACK, Piece.ROOK),
             ],
             [(Color.BLACK, Piece.PAWN) for _ in range(8)],
-            *[[None] * 8 for _ in range(4)],
+            *[[(None, None)] * 8 for _ in range(4)],
             [(Color.WHITE, Piece.PAWN) for _ in range(8)],
             [
                 (Color.WHITE, Piece.ROOK),
@@ -86,9 +89,9 @@ def display_board(msg=""):
 		row_string = str(row_num) + " "
 		for current in row:
 			if(white_cell):
-				row_string += '\033[47m' + " " + pawns[current] + "  " + '\033[0m'
+				row_string += '\033[47m' + " " + pieces[current] + "  " + '\033[0m'
 			else:
-				row_string += '\033[40m' + " " + pawns[current] + "  " + '\033[0m'
+				row_string += '\033[40m' + " " + pieces[current] + "  " + '\033[0m'
 
 			white_cell = not white_cell
 
@@ -109,21 +112,62 @@ def display_board(msg=""):
 
 
 def is_valid(move):
-	pass
+	move = [char for char in move]
 
-def move():
-	move = input(" Insert move in long algebraic notation: ")
-   	
-	move = [char for char in move]  
-	if(len(move)!=4 or 
-		ord(move[0]) not in range(ord('a'), ord('i')) or 
-		ord(move[2]) not in range(ord('a'), ord('i')) or 
+	try:
+		int(move[1])
+		int(move[3])
+
+	except ValueError:
+		return " Error: Not long algebraic notation (e.g. a2a4)"
+
+	if(len(move)!=4 or
+		ord(move[0].upper()) not in range(ord('A'), ord('i')) or 
+		ord(move[2].upper()) not in range(ord('A'), ord('i')) or 
 		int(move[1]) not in range(1, 9) or
 		int(move[3]) not in range(1, 9)):
 		
 		return " Error: Not long algebraic notation (e.g. a2a4)"
 
-	is_valid(move)
+	move[0] = int(ord(move[0].upper()) - ord("A"))
+	move[1] = 8 - int(move[1])
+	move[2] = int(ord(move[2].upper()) - ord("A"))
+	move[3] = 8 - int(move[3])
+
+	start_x = move[1]
+	start_y = move[0]
+	end_x = move[3]
+	end_y = move[2]
+
+	if(board[start_x][start_y]==None):
+		return " No piece there"
+
+	if(white_turn and board[start_x][start_y][0]!=Color.WHITE
+		or not white_turn and board[start_x][start_y][0]!=Color.BLACK):
+		return " Wrong player"
+
+	if(start_x == end_x and start_y == end_y):
+		return " Can't move " + pieces[board[start_x][start_y]] + "  in same location"
+
+	if(board[start_x][start_y][0] == board[end_x][end_y][0]):
+		return " Can't move " + pieces[board[start_x][start_y]] + "  on " +\
+			pieces[board[end_x][end_y]] + " (Your piece)"
+
+	return ""
+
+def move():
+	global white_turn
+
+	if(white_turn):
+		move = input(" Insert move in long algebraic notation (White plays): ")
+	else:
+		move = input(" Insert move in long algebraic notation (Black plays): ")		
+	
+	val = is_valid(move)
+	if(val!=""):
+		return val
+
+	white_turn = not white_turn
 
 	return ""
 
