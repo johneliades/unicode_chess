@@ -9,6 +9,9 @@ global white_turn
 
 white_turn = True
 
+class ErrorException(Exception):
+	pass
+
 class Color(enum.Enum):
     WHITE = 0
     BLACK = 1
@@ -36,6 +39,19 @@ pieces = {
     (Color.BLACK, Piece.KING): u'♔',
     (Color.BLACK, Piece.QUEEN): u'♕',
    	(None, None): " ",
+}
+
+dead_pawns = {
+    (Color.WHITE, Piece.QUEEN): 0,
+    (Color.WHITE, Piece.ROOK): 0,
+    (Color.WHITE, Piece.BISHOP): 0,
+    (Color.WHITE, Piece.KNIGHT): 0,
+    (Color.WHITE, Piece.PAWN): 0,     
+    (Color.BLACK, Piece.QUEEN): 0,
+    (Color.BLACK, Piece.ROOK): 0,
+    (Color.BLACK, Piece.BISHOP):  0,
+    (Color.BLACK, Piece.KNIGHT): 0,
+    (Color.BLACK, Piece.PAWN): 0,
 }
 
 def init_board():
@@ -78,6 +94,18 @@ def display_board(error=""):
 
 	print()
 
+	total = dead_pawns[(Color.WHITE, Piece.PAWN)] + 3 *\
+		(dead_pawns[(Color.WHITE, Piece.KNIGHT)] + dead_pawns[(Color.WHITE, Piece.BISHOP)]) +\
+		5 * dead_pawns[(Color.WHITE, Piece.ROOK)] + 6 * dead_pawns[(Color.WHITE, Piece.QUEEN)]
+
+	print(" Points: " + str(total), end=" ")
+
+	for pawn in dead_pawns:
+		if(pawn[0] == Color.WHITE):
+			print(dead_pawns[pawn] * (" " + pieces[pawn]), end="")
+
+	print("\n")
+
 	row_num = 8
 
 	for row in board:
@@ -109,6 +137,19 @@ def display_board(error=""):
 		print(letter, end="  ")
 
 	print("\n")
+
+	total = dead_pawns[(Color.BLACK, Piece.PAWN)] + 3 *\
+		(dead_pawns[(Color.BLACK, Piece.KNIGHT)] + dead_pawns[(Color.BLACK, Piece.BISHOP)]) +\
+		5 * dead_pawns[(Color.BLACK, Piece.ROOK)] + 6 * dead_pawns[(Color.BLACK, Piece.QUEEN)]
+
+	print(" Points: " + str(total), end=" ")
+
+	for pawn in dead_pawns:
+		if(pawn[0] == Color.BLACK):
+			print(dead_pawns[pawn] * (" " + pieces[pawn]), end="")
+
+	print("\n")
+
 	print(error)
 	print()
 
@@ -119,7 +160,7 @@ def is_valid(move):
 		int(move[1])
 		int(move[3])
 	except ValueError:
-		raise Exception(" Error: Not long algebraic notation (e.g. a2a4)")
+		raise ErrorException(" Error: Not long algebraic notation (e.g. a2a4)")
 
 	if(len(move)!=4 or
 		ord(move[0].upper()) not in range(ord('A'), ord('i')) or 
@@ -127,7 +168,7 @@ def is_valid(move):
 		int(move[1]) not in range(1, 9) or
 		int(move[3]) not in range(1, 9)):
 		
-		raise Exception(" Error: Not long algebraic notation (e.g. a2a4)")
+		raise ErrorException(" Error: Not long algebraic notation (e.g. a2a4)")
 
 	move[0] = int(ord(move[0].upper()) - ord("A"))
 	move[1] = 8 - int(move[1])
@@ -140,17 +181,17 @@ def is_valid(move):
 	end_y = move[2]
 
 	if(board[start_x][start_y]==(None, None)):
-		raise Exception(" No piece there")
+		raise ErrorException(" No piece there")
 
 	if(white_turn and board[start_x][start_y][0]!=Color.WHITE
 		or not white_turn and board[start_x][start_y][0]!=Color.BLACK):
-		raise Exception(" Wrong player")
+		raise ErrorException(" Wrong player")
 
 	if(start_x == end_x and start_y == end_y):
-		raise Exception(" Can't move " + pieces[board[start_x][start_y]] + "  in same location")
+		raise ErrorException(" Can't move " + pieces[board[start_x][start_y]] + "  in same location")
 
 	if(board[start_x][start_y][0] == board[end_x][end_y][0]):
-		raise Exception(" Can't move " + pieces[board[start_x][start_y]] + "  on " +\
+		raise ErrorException(" Can't move " + pieces[board[start_x][start_y]] + "  on " +\
 			pieces[board[end_x][end_y]] + " (Your piece)")
 
 	if(board[start_x][start_y][1] == Piece.PAWN):
@@ -164,6 +205,8 @@ def is_valid(move):
 	elif(board[start_x][start_y][1] == Piece.QUEEN):
 		pass 
 
+	return [start_x, start_y, end_x, end_y]
+
 def move():
 	global white_turn
 
@@ -172,7 +215,20 @@ def move():
 	else:
 		move = input(" Insert move in long algebraic notation (Black plays): ")		
 	
-	val = is_valid(move)
+	move = is_valid(move)
+	
+	start_x = move[0]
+	start_y = move[1]
+	end_x = move[2]
+	end_y = move[3]
+
+	try:
+		dead_pawns[board[end_x][end_y]] += 1
+	except KeyError:
+		pass
+
+	board[end_x][end_y] = board[start_x][start_y]
+	board[start_x][start_y] = (None, None)
 
 	white_turn = not white_turn
 
@@ -184,7 +240,7 @@ def play():
 
 		try:
 			move()
-		except Exception as e:
+		except ErrorException as e:
 			msg = e
 
 init_board()
