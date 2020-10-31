@@ -69,7 +69,7 @@ def init_board():
         ]
     )
 
-def display_board(msg=""):
+def display_board(error=""):
 	global board
 
 	os.system('cls' if os.name == 'nt' else 'clear')
@@ -89,11 +89,13 @@ def display_board(msg=""):
 		row_string = str(row_num) + " "
 		for current in row:
 			if(white_cell):
-				row_string += '\033[47m' + " " + pieces[current] + "  " + '\033[0m'
+				row_string += '\033[47m' + "▏" + pieces[current] + "  " + '\033[0m'
 			else:
-				row_string += '\033[40m' + " " + pieces[current] + "  " + '\033[0m'
+				row_string += '\033[40m' + "▏" + pieces[current] + "  " + '\033[0m'
 
 			white_cell = not white_cell
+
+		row_string += "▏"
 
 		print(row_string)
 
@@ -103,13 +105,12 @@ def display_board(msg=""):
 	for x in range(spaces + 3):
 		print(" ", end="")
 
-	for letter in ["a", "b", "c", "d", "e", "f", "g", "h"]:
-		print(letter, end="   ")
+	for letter in [u'\uff41', u'\uff42', u'\uff43', u'\uff44', u'\uff45', u'\uff46', u'\uff47', u'\uff48']:
+		print(letter, end="  ")
 
 	print("\n")
-	print(msg)
+	print(error)
 	print()
-
 
 def is_valid(move):
 	move = [char for char in move]
@@ -117,9 +118,8 @@ def is_valid(move):
 	try:
 		int(move[1])
 		int(move[3])
-
 	except ValueError:
-		return " Error: Not long algebraic notation (e.g. a2a4)"
+		raise Exception(" Error: Not long algebraic notation (e.g. a2a4)")
 
 	if(len(move)!=4 or
 		ord(move[0].upper()) not in range(ord('A'), ord('i')) or 
@@ -127,7 +127,7 @@ def is_valid(move):
 		int(move[1]) not in range(1, 9) or
 		int(move[3]) not in range(1, 9)):
 		
-		return " Error: Not long algebraic notation (e.g. a2a4)"
+		raise Exception(" Error: Not long algebraic notation (e.g. a2a4)")
 
 	move[0] = int(ord(move[0].upper()) - ord("A"))
 	move[1] = 8 - int(move[1])
@@ -139,21 +139,30 @@ def is_valid(move):
 	end_x = move[3]
 	end_y = move[2]
 
-	if(board[start_x][start_y]==None):
-		return " No piece there"
+	if(board[start_x][start_y]==(None, None)):
+		raise Exception(" No piece there")
 
 	if(white_turn and board[start_x][start_y][0]!=Color.WHITE
 		or not white_turn and board[start_x][start_y][0]!=Color.BLACK):
-		return " Wrong player"
+		raise Exception(" Wrong player")
 
 	if(start_x == end_x and start_y == end_y):
-		return " Can't move " + pieces[board[start_x][start_y]] + "  in same location"
+		raise Exception(" Can't move " + pieces[board[start_x][start_y]] + "  in same location")
 
 	if(board[start_x][start_y][0] == board[end_x][end_y][0]):
-		return " Can't move " + pieces[board[start_x][start_y]] + "  on " +\
-			pieces[board[end_x][end_y]] + " (Your piece)"
+		raise Exception(" Can't move " + pieces[board[start_x][start_y]] + "  on " +\
+			pieces[board[end_x][end_y]] + " (Your piece)")
 
-	return ""
+	if(board[start_x][start_y][1] == Piece.PAWN):
+		pass
+	elif(board[start_x][start_y][1] == Piece.ROOK):
+		pass
+	elif(board[start_x][start_y][1] == Piece.KNIGHT):
+		pass	
+	elif(board[start_x][start_y][1] == Piece.BISHOP):
+		pass		
+	elif(board[start_x][start_y][1] == Piece.QUEEN):
+		pass 
 
 def move():
 	global white_turn
@@ -164,19 +173,19 @@ def move():
 		move = input(" Insert move in long algebraic notation (Black plays): ")		
 	
 	val = is_valid(move)
-	if(val!=""):
-		return val
 
 	white_turn = not white_turn
-
-	return ""
 
 def play():
 	msg = ""
 	while True:
 		display_board(msg)
-		msg = move()
+		msg = ""
 
+		try:
+			move()
+		except Exception as e:
+			msg = e
 
 init_board()
 play()
