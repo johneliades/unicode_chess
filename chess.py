@@ -92,6 +92,13 @@ def display_board(error=""):
 
 	white_cell = True
 
+	author = "𝓒𝓱𝓮𝓼𝓼 𝓫𝔂 𝓙𝓸𝓱𝓷 𝓔𝓵𝓲𝓪𝓭𝓮𝓼"
+	author = author.center(int(os.popen('stty size', 'r').read().split()[1]))
+
+	print()
+
+	print(author)
+
 	print()
 
 	total = dead_pawns[(Color.WHITE, Piece.PAWN)] + 3 *\
