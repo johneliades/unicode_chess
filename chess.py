@@ -9,7 +9,7 @@ global white_turn
 
 white_turn = True
 
-class ErrorException(Exception):
+class InvalidMoveException(Exception):
 	pass
 
 class Color(enum.Enum):
@@ -41,7 +41,7 @@ pieces = {
    	(None, None): " ",
 }
 
-dead_pawns = {
+dead_piece_count = {
     (Color.WHITE, Piece.QUEEN): 0,
     (Color.WHITE, Piece.ROOK): 0,
     (Color.WHITE, Piece.BISHOP): 0,
@@ -101,15 +101,15 @@ def display_board(error=""):
 
 	print()
 
-	total = dead_pawns[(Color.WHITE, Piece.PAWN)] + 3 *\
-		(dead_pawns[(Color.WHITE, Piece.KNIGHT)] + dead_pawns[(Color.WHITE, Piece.BISHOP)]) +\
-		5 * dead_pawns[(Color.WHITE, Piece.ROOK)] + 6 * dead_pawns[(Color.WHITE, Piece.QUEEN)]
+	total = dead_piece_count[(Color.WHITE, Piece.PAWN)] + 3 *\
+		(dead_piece_count[(Color.WHITE, Piece.KNIGHT)] + dead_piece_count[(Color.WHITE, Piece.BISHOP)]) +\
+		5 * dead_piece_count[(Color.WHITE, Piece.ROOK)] + 6 * dead_piece_count[(Color.WHITE, Piece.QUEEN)]
 
 	print(" Points: " + str(total), end=" ")
 
-	for pawn in dead_pawns:
+	for pawn in dead_piece_count:
 		if(pawn[0] == Color.WHITE):
-			print(dead_pawns[pawn] * (" " + pieces[pawn]), end="")
+			print(dead_piece_count[pawn] * (" " + pieces[pawn]), end="")
 
 	print("\n")
 
@@ -145,29 +145,123 @@ def display_board(error=""):
 
 	print("\n")
 
-	total = dead_pawns[(Color.BLACK, Piece.PAWN)] + 3 *\
-		(dead_pawns[(Color.BLACK, Piece.KNIGHT)] + dead_pawns[(Color.BLACK, Piece.BISHOP)]) +\
-		5 * dead_pawns[(Color.BLACK, Piece.ROOK)] + 6 * dead_pawns[(Color.BLACK, Piece.QUEEN)]
+	total = dead_piece_count[(Color.BLACK, Piece.PAWN)] + 3 *\
+		(dead_piece_count[(Color.BLACK, Piece.KNIGHT)] + dead_piece_count[(Color.BLACK, Piece.BISHOP)]) +\
+		5 * dead_piece_count[(Color.BLACK, Piece.ROOK)] + 6 * dead_piece_count[(Color.BLACK, Piece.QUEEN)]
 
 	print(" Points: " + str(total), end=" ")
 
-	for pawn in dead_pawns:
+	for pawn in dead_piece_count:
 		if(pawn[0] == Color.BLACK):
-			print(dead_pawns[pawn] * (" " + pieces[pawn]), end="")
+			print(dead_piece_count[pawn] * (" " + pieces[pawn]), end="")
 
 	print("\n")
 
 	print(error)
 	print()
 
+def pawn_moves():
+	pass
+
+def rook_moves(start_x, start_y, end_x, end_y):
+	moves = []
+	for offset_x in reversed(range(0, start_x)):
+		if(board[offset_x][start_y] == (None, None)):
+			moves.append((offset_x, start_y))
+		elif(board[offset_x][start_y][0] != board[start_x][start_y][0]):
+			moves.append((offset_x, start_y))
+			break	
+		else:
+			break
+	
+	for offset_x in range(start_x+1, 8):
+		if(board[offset_x][start_y] == (None, None)):
+			moves.append((offset_x, start_y))
+		elif(board[offset_x][start_y][0] != board[start_x][start_y][0]):
+			moves.append((offset_x, start_y))
+			break	
+		else:
+			break
+
+	for offset_y in reversed(range(0, start_y)):
+		if(board[start_x][offset_y] == (None, None)):
+			moves.append((start_x, offset_y))
+		elif(board[start_x][offset_y][0] != board[start_x][start_y][0]):
+			moves.append((start_x, offset_y))
+			break	
+		else:
+			break
+
+	for offset_y in range(start_y+1, 8):
+		if(board[start_x][offset_y] == (None, None)):
+			moves.append((start_x, offset_y))
+		elif(board[start_x][offset_y][0] != board[start_x][start_y][0]):
+			moves.append((start_x, offset_y))
+			break	
+		else:
+			break
+
+	return moves;
+
+def bishop_moves(start_x, start_y, end_x, end_y):
+	moves = []
+	for offset_x, offset_y in zip(reversed(range(0, start_x)), reversed(range(0, start_y))):
+		if(board[offset_x][offset_y] == (None, None)):
+			moves.append((offset_x, offset_y))
+		elif(board[offset_x][offset_y][0] != board[start_x][start_y][0]):
+			moves.append((offset_x, offset_y))
+			break	
+		else:
+			break
+	
+	for offset_x, offset_y in zip(range(start_x+1, 8), range(start_y+1, 8)):
+		if(board[offset_x][offset_y] == (None, None)):
+			moves.append((offset_x, offset_y))
+		elif(board[offset_x][offset_y][0] != board[start_x][start_y][0]):
+			moves.append((offset_x, offset_y))
+			break	
+		else:
+			break
+
+	for offset_x, offset_y in zip(range(start_x+1, 8), reversed(range(0, start_y))):
+		if(board[offset_x][offset_y] == (None, None)):
+			moves.append((offset_x, offset_y))
+		elif(board[offset_x][offset_y][0] != board[start_x][start_y][0]):
+			moves.append((offset_x, offset_y))
+			break	
+		else:
+			break
+
+	for offset_x, offset_y in zip(reversed(range(0, start_x)), range(start_y+1, 8)):
+		if(board[offset_x][offset_y] == (None, None)):
+			moves.append((offset_x, offset_y))
+		elif(board[offset_x][offset_y][0] != board[start_x][start_y][0]):
+			moves.append((offset_x, offset_y))
+			break	
+		else:
+			break
+
+	return moves
+
+def knight_moves(x, y):
+	moves = [(x+2,y+1), (x-2,y+1), (x+2,y-1), (x-2,y-1), (x+1,y+2), (x-1,y+2), (x+1,y-2), (x-1,y-2)]
+
+	return moves
+
+def queen_moves(start_x, start_y, end_x, end_y):
+	moves = []
+	moves = rook_moves(start_x, start_y, end_x, end_y)
+	moves += bishop_moves(start_x, start_y, end_x, end_y)
+
+	return moves
+
+def king_moves(x, y):
+	moves = [(x+1,y), (x+1,y+1), (x+1,y-1), (x,y+1), (x,y-1), (x-1,y), (x-1,y+1), (x-1,y-1)]
+
+	return moves
+
 def is_valid(move):
 	move = [char for char in move]
-
-	try:
-		int(move[1])
-		int(move[3])
-	except ValueError:
-		raise ErrorException(" Error: Not long algebraic notation (e.g. a2a4)")
 
 	if(len(move)!=4 or
 		ord(move[0].upper()) not in range(ord('A'), ord('i')) or 
@@ -175,7 +269,13 @@ def is_valid(move):
 		int(move[1]) not in range(1, 9) or
 		int(move[3]) not in range(1, 9)):
 		
-		raise ErrorException(" Error: Not long algebraic notation (e.g. a2a4)")
+		raise InvalidMoveException(" Error: Not long algebraic notation (e.g. a2a4)")
+	
+	try:
+		int(move[1])
+		int(move[3])
+	except ValueError:
+		raise InvalidMoveException(" Error: Not long algebraic notation (e.g. a2a4)")
 
 	move[0] = int(ord(move[0].upper()) - ord("A"))
 	move[1] = 8 - int(move[1])
@@ -188,29 +288,45 @@ def is_valid(move):
 	end_y = move[2]
 
 	if(board[start_x][start_y]==(None, None)):
-		raise ErrorException(" No piece there")
+		raise InvalidMoveException(" No piece there")
 
 	if(white_turn and board[start_x][start_y][0]!=Color.WHITE
 		or not white_turn and board[start_x][start_y][0]!=Color.BLACK):
-		raise ErrorException(" Wrong player")
+		raise InvalidMoveException(" Wrong player")
 
 	if(start_x == end_x and start_y == end_y):
-		raise ErrorException(" Can't move " + pieces[board[start_x][start_y]] + "  in same location")
+		raise InvalidMoveException(" Can't move " + pieces[board[start_x][start_y]] + "  in same location")
 
 	if(board[start_x][start_y][0] == board[end_x][end_y][0]):
-		raise ErrorException(" Can't move " + pieces[board[start_x][start_y]] + "  on " +\
+		raise InvalidMoveException(" Can't move " + pieces[board[start_x][start_y]] + "  on " +\
 			pieces[board[end_x][end_y]] + " (Your piece)")
 
 	if(board[start_x][start_y][1] == Piece.PAWN):
 		pass
 	elif(board[start_x][start_y][1] == Piece.ROOK):
-		pass
+		moves = rook_moves(start_x, start_y, end_x, end_y)
+		if((end_x, end_y) not in moves):
+			raise InvalidMoveException(" Can't move " + pieces[board[start_x][start_y]] + "  there")
+
 	elif(board[start_x][start_y][1] == Piece.KNIGHT):
-		pass	
+		moves = knight_moves(start_x, start_y)
+		if((end_x, end_y) not in moves):
+			raise InvalidMoveException(" Can't move " + pieces[board[start_x][start_y]] + "  there")
+
 	elif(board[start_x][start_y][1] == Piece.BISHOP):
-		pass		
+		moves = bishop_moves(start_x, start_y, end_x, end_y)
+		if((end_x, end_y) not in moves):
+			raise InvalidMoveException(" Can't move " + pieces[board[start_x][start_y]] + "  there")
+		
 	elif(board[start_x][start_y][1] == Piece.QUEEN):
-		pass 
+		moves = queen_moves(start_x, start_y, end_x, end_y)
+		if((end_x, end_y) not in moves):
+			raise InvalidMoveException(" Can't move " + pieces[board[start_x][start_y]] + "  there")
+
+	elif(board[start_x][start_y][1] == Piece.KING):
+		moves = king_moves(start_x, start_y)
+		if((end_x, end_y) not in moves):
+			raise InvalidMoveException(" Can't move " + pieces[board[start_x][start_y]] + "  there")
 
 	return [start_x, start_y, end_x, end_y]
 
@@ -230,7 +346,7 @@ def move():
 	end_y = move[3]
 
 	try:
-		dead_pawns[board[end_x][end_y]] += 1
+		dead_piece_count[board[end_x][end_y]] += 1
 	except KeyError:
 		pass
 
@@ -247,7 +363,7 @@ def play():
 
 		try:
 			move()
-		except ErrorException as e:
+		except InvalidMoveException as e:
 			msg = e
 
 init_board()
