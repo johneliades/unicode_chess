@@ -3,10 +3,14 @@ import enum
 import os
 import math
 import time
+import subprocess
 
 global board
 global white_turn
+global fd
+global debug
 
+debug = True
 white_turn = True
 
 class Color(enum.Enum):
@@ -23,7 +27,7 @@ class pawn:
 		else:
 			return u'♙'
 
-	def avail_moves(self, start_x, start_y, end_x, end_y):
+	def avail_moves(self, start_x, start_y):
 		moves = []
 
 		for offset_x in range(0, 9):
@@ -42,7 +46,7 @@ class rook:
 		else:
 			return u'♖'
 
-	def avail_moves(self, start_x, start_y, end_x, end_y):
+	def avail_moves(self, start_x, start_y):
 		moves = []
 		for offset_x in reversed(range(0, start_x)):
 			if(board[offset_x][start_y] == " "):
@@ -92,7 +96,7 @@ class bishop:
 		else:
 			return u'♗'
 
-	def avail_moves(self, start_x, start_y, end_x, end_y):
+	def avail_moves(self, start_x, start_y):
 		moves = []
 		for offset_x, offset_y in zip(reversed(range(0, start_x)), reversed(range(0, start_y))):
 			if(board[offset_x][offset_y] == " "):
@@ -142,8 +146,26 @@ class knight:
 		else:
 			return u'♘'
 
-	def avail_moves(self, x, y, end_x, end_y):
+	def avail_moves(self, x, y):
 		moves = [(x+2,y+1), (x-2,y+1), (x+2,y-1), (x-2,y-1), (x+1,y+2), (x-1,y+2), (x+1,y-2), (x-1,y-2)]
+		for cur_move in reversed(moves):
+			cur_x = cur_move[0]
+			cur_y = cur_move[1]
+
+			# Remove out of range moves
+			try:
+				board[cur_x][cur_y]
+			except:
+				moves.remove(cur_move)
+				continue
+	
+			# Don't remove moves to empty cell
+			try:
+				# Remove moves on your pieces
+				if board[cur_x][cur_y].color == board[x][y].color:
+					moves.remove(cur_move)
+			except:
+				pass
 
 		return moves
 
@@ -157,10 +179,10 @@ class queen:
 		else:
 			return u'♕'
 
-	def avail_moves(self, start_x, start_y, end_x, end_y):
+	def avail_moves(self, start_x, start_y):
 		moves = []
-		moves = rook.avail_moves(self, start_x, start_y, end_x, end_y)
-		moves += bishop.avail_moves(self, start_x, start_y, end_x, end_y)
+		moves = rook.avail_moves(self, start_x, start_y)
+		moves += bishop.avail_moves(self, start_x, start_y)
 
 		return moves
 
@@ -174,8 +196,26 @@ class king:
 		else:
 			return u'♔'
 
-	def avail_moves(self, x, y, end_x, end_y):
+	def avail_moves(self, x, y):
 		moves = [(x+1,y), (x+1,y+1), (x+1,y-1), (x,y+1), (x,y-1), (x-1,y), (x-1,y+1), (x-1,y-1)]
+		for cur_move in reversed(moves):
+			cur_x = cur_move[0]
+			cur_y = cur_move[1]
+
+			# Remove out of range moves
+			try:
+				board[cur_x][cur_y]
+			except:
+				moves.remove(cur_move)
+				continue
+	
+			# Don't remove moves to empty cell
+			try:
+				# Remove moves on your pieces
+				if board[cur_x][cur_y].color == board[x][y].color:
+					moves.remove(cur_move)
+			except:
+				pass
 
 		return moves
 
@@ -301,8 +341,56 @@ def display_board(error=""):
 	print(error)
 	print()
 
+def display_moves(start_x, start_y):
+	white_cell = True
+	row_num = 8
+
+	moves = board[start_x][start_y].avail_moves(start_x, start_y)
+
+	for i in range(0, 8):
+		row_string = str(row_num) + " "
+		for j in range(0, 8):
+			if(white_cell):
+				if(i==start_x and j==start_y):
+					row_string += '\033[45m' + "▏" + str(board[i][j]) + ' \033[0m'
+				elif((i, j) in moves):
+					row_string += '\033[46m' + "▏" + str(board[i][j]) + ' \033[0m'
+				else:
+					row_string += '\033[47m' + "▏" + str(board[i][j]) + ' \033[0m'
+			else:
+				if(i==start_x and j==start_y):
+					row_string += '\033[45m' + "▏" + str(board[i][j]) + ' \033[0m'
+				elif((i, j) in moves):
+					row_string += '\033[46m' + "▏" + str(board[i][j]) + ' \033[0m'
+				else:
+					row_string += '\033[40m' + "▏" + str(board[i][j]) + ' \033[0m'
+
+			white_cell = not white_cell
+
+		row_string += "▏"
+
+		fd.write(row_string + "\n")
+
+		white_cell = not white_cell
+		row_num -= 1
+
+	fd.write("   ")
+
+	for letter in ["a", "b", "c", "d", "e", "f", "g", "h"]:
+		fd.write(letter + "  ")
+	
+	fd.write("\n\n")
+
+	fd.flush()
+
 def is_valid(move):
 	move = [char for char in move]
+
+	try:
+		int(move[1])
+		int(move[3])
+	except:
+		raise InvalidMoveException(" Error: Not long algebraic notation (e.g. a2a4)")
 
 	if(len(move)!=4 or
 		ord(move[0].upper()) not in range(ord('A'), ord('i')) or 
@@ -310,12 +398,6 @@ def is_valid(move):
 		int(move[1]) not in range(1, 9) or
 		int(move[3]) not in range(1, 9)):
 		
-		raise InvalidMoveException(" Error: Not long algebraic notation (e.g. a2a4)")
-	
-	try:
-		int(move[1])
-		int(move[3])
-	except ValueError:
 		raise InvalidMoveException(" Error: Not long algebraic notation (e.g. a2a4)")
 
 	move[0] = int(ord(move[0].upper()) - ord("A"))
@@ -342,7 +424,7 @@ def is_valid(move):
 		raise InvalidMoveException(" Can't move " + str(board[start_x][start_y]) + "  on " +\
 			str(board[end_x][end_y]) + " (Your piece)")
 
-	moves = board[start_x][start_y].avail_moves(start_x, start_y, end_x, end_y)
+	moves = board[start_x][start_y].avail_moves(start_x, start_y)
 	if((end_x, end_y) not in moves):
 		raise InvalidMoveException(" Can't move " + str(board[start_x][start_y]) + "  there")
 
@@ -368,12 +450,21 @@ def move():
 	except KeyError:
 		pass
 
+	if(debug):
+		display_moves(start_x, start_y)
+
 	board[end_x][end_y] = board[start_x][start_y]
 	board[start_x][start_y] = " "
 
 	white_turn = not white_turn
 
 def play():
+	global fd
+
+	if(debug):
+		fd = open("avail_moves", "w")
+		p = subprocess.Popen(["xterm", "-e", "tail", "-f", "avail_moves"])
+
 	msg = ""
 	while True:
 		display_board(msg)
