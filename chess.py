@@ -4,13 +4,12 @@ import os
 import math
 import time
 import subprocess
+import curses
 
 global board
 global white_turn
 global fd
-global debug
 
-debug = True
 white_turn = True
 
 class Color(enum.Enum):
@@ -266,214 +265,271 @@ def init_board():
 		]
 	)
 
-def display_board(error=""):
+def display_board(stdscr, start_x=None, start_y=None):
 	global board
 
-	os.system('cls' if os.name == 'nt' else 'clear')
+	h, w = stdscr.getmaxyx()
 
-	white_cell = True
+	stdscr.clear()
 
 	author = "𝓒𝓱𝓮𝓼𝓼 𝓫𝔂 𝓙𝓸𝓱𝓷 𝓔𝓵𝓲𝓪𝓭𝓮𝓼"
-	author = author.center(int(os.popen('stty size', 'r').read().split()[1]))
-
-	print()
-
-	print(author)
-
-	print()
+	x = w//2 - len(author)//2
+	y = h//2 - 10
+	stdscr.addstr(y, x, author)
+	stdscr.refresh()
 
 	total = dead_piece_count[u'♟'] + 3 *\
 		(dead_piece_count[u'♞'] + dead_piece_count[u'♝']) +\
 		5 * dead_piece_count[u'♜'] + 6 * dead_piece_count[u'♛']
 
-	print(" Points: " + str(total), end=" ")
+	total = "Points: " + str(total)
+	x = 4
+	y = 5
+	stdscr.addstr(y, x, total)
+	stdscr.refresh()
 
+	x = 4 + len(total) + 1
 	for pawn, count in dead_piece_count.items():
 		if pawn in [u'♟', u'♜', u'♞', u'♝', u'♛']:
-			print(count * pawn, end="")
+			y = 5
 
-	print("\n")
+			for i in range(count):
+				stdscr.addstr(y, x, pawn)
+				x += 2
+			
+	stdscr.refresh()
 
 	row_num = 8
 
-	for row in board:
-		columns = int(os.popen('stty size', 'r').read().split()[1]) - 16
-		spaces = math.floor(columns/2) - 8
-		for x in range(spaces):
-			print(" ", end="")
+	curses.init_pair(1, curses.COLOR_WHITE, 233)
+	curses.init_pair(2, curses.COLOR_WHITE, 240)
+	curses.init_pair(3, curses.COLOR_WHITE, 23)
+	curses.init_pair(4, curses.COLOR_WHITE, 45)
+	curses.init_pair(5, curses.COLOR_WHITE, curses.COLOR_RED)
+	
+	y = 7
+	
+	if(start_x!=None and start_y!=None):
+		moves = board[start_x][start_y].avail_moves(start_x, start_y)
 
-		row_string = str(row_num) + " "
-		for current in row:
-			if(white_cell):
-				row_string += '\033[47m' + "▏" + str(current) + "  " + '\033[0m'
+	white_cell = True
+	for i, row in enumerate(board):
+		x = w//2 - 34//2
+		cur_string = str(row_num)
+		stdscr.addstr(y, x, cur_string)
+		stdscr.refresh()
+
+		x+=2
+
+		for j, current in enumerate(row):
+			if(i==start_x and j==start_y):
+				stdscr.attron(curses.color_pair(3))
+				cur_string =  " " + str(current) + "  " 
+				stdscr.addstr(y, x, cur_string)
+				stdscr.attroff(curses.color_pair(3))
+			elif(start_x!=None and start_y!=None and (i, j) in moves):
+				try:
+					if(board[start_x][start_y].color!=board[i][j].color):
+						stdscr.attron(curses.color_pair(5))
+						cur_string =  " " + str(current) + "  " 
+						stdscr.addstr(y, x, cur_string)
+						stdscr.attroff(curses.color_pair(5))					
+				except:
+					stdscr.attron(curses.color_pair(4))
+					cur_string =  " " + str(current) + "  " 
+					stdscr.addstr(y, x, cur_string)
+					stdscr.attroff(curses.color_pair(4))
+			elif(white_cell):
+				stdscr.attron(curses.color_pair(1))
+				cur_string =  " " + str(current) + "  " 
+				stdscr.addstr(y, x, cur_string)
+				stdscr.attroff(curses.color_pair(1))
 			else:
-				row_string += '\033[40m' + "▏" + str(current) + "  " + '\033[0m'
+				stdscr.attron(curses.color_pair(2))
+				cur_string =  " " + str(current) + "  " 
+				stdscr.addstr(y, x, cur_string)
+				stdscr.attroff(curses.color_pair(2))
+			
+			x+=len(cur_string)
 
+			stdscr.refresh()
 			white_cell = not white_cell
 
-		row_string += "▏"
-
-		print(row_string)
+		y+=1
 
 		white_cell = not white_cell
 		row_num -= 1
 
-	for x in range(spaces + 3):
-		print(" ", end="")
-
+	letters = ""
 	for letter in [u'\uff41', u'\uff42', u'\uff43', u'\uff44', u'\uff45', u'\uff46', u'\uff47', u'\uff48']:
-		print(letter, end="  ")
+		letters += letter + "  "
 
-	print("\n")
+	letters += "    "
+
+	x = w//2 - len(letters)//2
+	stdscr.addstr(y, x, letters)
 
 	total = dead_piece_count[u'♙'] + 3 *\
 		(dead_piece_count[u'♘'] + dead_piece_count[u'♗']) +\
 		5 * dead_piece_count[u'♖'] + 6 * dead_piece_count[u'♕']
 
-	print(" Points: " + str(total), end=" ")
+	total = "Points: " + str(total)
+	x = 4
+	y += 2
+	stdscr.addstr(y, x, total)
+	stdscr.refresh()
 
+	x = 4 + len(total) + 1
 	for pawn, count in dead_piece_count.items():
 		if pawn in [u'♙', u'♖', u'♘', u'♗', u'♕']:
-			print(count * pawn, end="")
+			for i in range(count):
+				stdscr.addstr(y, x, pawn)
+				x += 2
 
-	print("\n")
+	stdscr.refresh()
 
-	print(error)
-	print()
-
-def display_moves(start_x, start_y):
-	white_cell = True
-	row_num = 8
-
-	moves = board[start_x][start_y].avail_moves(start_x, start_y)
-
-	for i in range(0, 8):
-		row_string = str(row_num) + " "
-		for j in range(0, 8):
-			if(white_cell):
-				if(i==start_x and j==start_y):
-					row_string += '\033[45m' + "▏" + str(board[i][j]) + ' \033[0m'
-				elif((i, j) in moves):
-					row_string += '\033[46m' + "▏" + str(board[i][j]) + ' \033[0m'
-				else:
-					row_string += '\033[47m' + "▏" + str(board[i][j]) + ' \033[0m'
-			else:
-				if(i==start_x and j==start_y):
-					row_string += '\033[45m' + "▏" + str(board[i][j]) + ' \033[0m'
-				elif((i, j) in moves):
-					row_string += '\033[46m' + "▏" + str(board[i][j]) + ' \033[0m'
-				else:
-					row_string += '\033[40m' + "▏" + str(board[i][j]) + ' \033[0m'
-
-			white_cell = not white_cell
-
-		row_string += "▏"
-
-		fd.write(row_string + "\n")
-
-		white_cell = not white_cell
-		row_num -= 1
-
-	fd.write("   ")
-
-	for letter in ["a", "b", "c", "d", "e", "f", "g", "h"]:
-		fd.write(letter + "  ")
-	
-	fd.write("\n\n")
-
-	fd.flush()
-
-def is_valid(move):
+def is_valid(stdscr, move):
 	move = [char for char in move]
 
+	if(ord(move[0].upper()) not in range(ord('A'), ord('i'))):
+		raise InvalidMoveException("Error: Give long algebraic notation")
+	start_y = int(ord(move[0].upper()) - ord("A"))
+
+	if(len(move)<2):
+		return None
+	
 	try:
 		int(move[1])
-		int(move[3])
 	except:
-		raise InvalidMoveException(" Error: Not long algebraic notation (e.g. a2a4)")
+		raise InvalidMoveException("Error: Give long algebraic notation")
+	
+	if(int(move[1]) not in range(1, 9)):
+		raise InvalidMoveException("Error: Give long algebraic notation")
 
-	if(len(move)!=4 or
-		ord(move[0].upper()) not in range(ord('A'), ord('i')) or 
-		ord(move[2].upper()) not in range(ord('A'), ord('i')) or 
-		int(move[1]) not in range(1, 9) or
-		int(move[3]) not in range(1, 9)):
-		
-		raise InvalidMoveException(" Error: Not long algebraic notation (e.g. a2a4)")
-
-	move[0] = int(ord(move[0].upper()) - ord("A"))
-	move[1] = 8 - int(move[1])
-	move[2] = int(ord(move[2].upper()) - ord("A"))
-	move[3] = 8 - int(move[3])
-
-	start_x = move[1]
-	start_y = move[0]
-	end_x = move[3]
-	end_y = move[2]
+	start_x = 8 - int(move[1])
+	
+	try:
+		board[start_x][start_y]
+	except:
+		raise InvalidMoveException("Error: Give long algebraic notation")
 
 	if(board[start_x][start_y]==" "):
-		raise InvalidMoveException(" No piece there")
+		raise InvalidMoveException("Error: No piece there")
+	display_board(stdscr, start_x, start_y)
 
-	if(white_turn and board[start_x][start_y].color!=Color.WHITE
-		or not white_turn and board[start_x][start_y].color!=Color.BLACK):
-		raise InvalidMoveException(" Wrong player")
+	if(len(move)<3):
+		return None
+
+	if(ord(move[2].upper()) not in range(ord('A'), ord('i'))):
+		raise InvalidMoveException("Error: Give long algebraic notation")
+	end_y = int(ord(move[2].upper()) - ord("A"))
+
+	if(len(move)<4):
+		return None
+	
+	try:
+		int(move[3])
+	except:
+		raise InvalidMoveException("Error: Give long algebraic notation")
+
+	if(int(move[3]) not in range(1, 9)):
+		raise InvalidMoveException("Error: Give long algebraic notation")
+
+	end_x = 8 - int(move[3])
+
+	try:
+		board[end_x][end_y]
+	except:
+		raise InvalidMoveException("Error: Give long algebraic notation")
+
+	if(white_turn and board[start_x][start_y].color!=Color.WHITE):
+		raise InvalidMoveException("Error: White plays")
+
+	if(not white_turn and board[start_x][start_y].color!=Color.BLACK):
+		raise InvalidMoveException("Error: Black plays")
 
 	if(start_x == end_x and start_y == end_y):
-		raise InvalidMoveException(" Can't move " + str(board[start_x][start_y]) + "  in same location")
+		raise InvalidMoveException("Error: Can't move " + str(board[start_x][start_y]) 
+			+ "  in same location")
 
 	if(board[end_x][end_y]!=" " and board[start_x][start_y].color == board[end_x][end_y].color):
-		raise InvalidMoveException(" Can't move " + str(board[start_x][start_y]) + "  on " +\
+		raise InvalidMoveException("Error: Can't move " + str(board[start_x][start_y]) + "  on " +\
 			str(board[end_x][end_y]) + " (Your piece)")
 
 	moves = board[start_x][start_y].avail_moves(start_x, start_y)
 	if((end_x, end_y) not in moves):
-		raise InvalidMoveException(" Can't move " + str(board[start_x][start_y]) + "  there")
+		raise InvalidMoveException("Error: Can't move " + str(board[start_x][start_y]) 
+			+ "  there")
 
 	return [start_x, start_y, end_x, end_y]
 
-def move():
+def move(stdscr):
 	global white_turn
 
-	if(white_turn):
-		move = input(" Insert move in long algebraic notation (White plays): ")
-	else:
-		move = input(" Insert move in long algebraic notation (Black plays): ")		
+	h, w = stdscr.getmaxyx()
+
+	move = []
+	y=21
+	i=0
+	while(len(move)!=4):
+		x = w//2 - len("***")//2 - 3
+		stdscr.addstr(y, x, i * "*")
+		stdscr.refresh()
+
+		key = stdscr.getkey()
+		if(key == 'KEY_BACKSPACE'):
+			if(i>0):
+				i-=1
+				move = move[:len(move)-1]
+
+			display_board(stdscr)
 	
-	move = is_valid(move)
-	
-	start_x = move[0]
-	start_y = move[1]
-	end_x = move[2]
-	end_y = move[3]
+			x = w//2 - 3//2 - 3
+			stdscr.addstr(y, x, 4 * " ")
+			stdscr.refresh()
+
+			continue
+
+		move.append(key)
+		try:
+			valid_move = is_valid(stdscr, move)
+			i+=1
+		except InvalidMoveException as e:
+			display_board(stdscr)
+			stdscr.addstr(19, 4, str(e))
+
+			x = w//2 - 3//2 - 3
+			stdscr.addstr(y, x, 4 * " ")
+			stdscr.refresh()
+
+			i=0
+			move.clear()
+
+	stdscr.refresh()
+
+	start_x = valid_move[0]
+	start_y = valid_move[1]
+	end_x = valid_move[2]
+	end_y = valid_move[3]
 
 	try:
 		dead_piece_count[str(board[end_x][end_y])] += 1
 	except KeyError:
 		pass
 
-	if(debug):
-		display_moves(start_x, start_y)
-
 	board[end_x][end_y] = board[start_x][start_y]
 	board[start_x][start_y] = " "
 
 	white_turn = not white_turn
 
-def play():
+def main(stdscr):
 	global fd
 
-	if(debug):
-		fd = open("avail_moves", "w")
-		p = subprocess.Popen(["xterm", "-e", "tail", "-f", "avail_moves"])
+	curses.curs_set(0)
 
-	msg = ""
 	while True:
-		display_board(msg)
-		msg = ""
-
-		try:
-			move()
-		except InvalidMoveException as e:
-			msg = e
+		display_board(stdscr)
+		move(stdscr)
 
 init_board()
-play()
+curses.wrapper(main)
