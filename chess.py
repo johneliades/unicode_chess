@@ -34,9 +34,29 @@ class pawn(chess_piece):
 	def avail_moves(self, start_x, start_y):
 		moves = []
 
-		for offset_x in range(0, 9):
-			for offset_y in range(0, 9):
-				moves.append((offset_x, offset_y))
+		if(board[start_x][start_y].color == Color.WHITE):
+			direction = 1
+			starting_row = 6
+		else:
+			direction = -1
+			starting_row = 1
+
+		if(board[start_x-1*direction][start_y]==" "):
+			moves.append((start_x - 1*direction, start_y))
+			if(board[start_x-2*direction][start_y]==" " 
+				and start_x==starting_row):
+				
+				moves.append((start_x - 2*direction, start_y))
+
+		if(board[start_x-1*direction][start_y-1]!=" " and
+			board[start_x-1*direction][start_y-1].color!=board[start_x][start_y].color):
+
+				moves.append((start_x-1*direction, start_y-1))
+
+		if(board[start_x-1*direction][start_y+1]!=" " and
+			board[start_x-1*direction][start_y+1].color!=board[start_x][start_y].color):
+
+				moves.append((start_x-1*direction, start_y+1))
 
 		return moves
 
