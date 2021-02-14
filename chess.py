@@ -18,17 +18,18 @@ class Color(enum.Enum):
 	BLACK = 1
 
 class chess_piece:
-	def __init__(self, color):
-		self.color = color
+	def __str__(self):
+		return self.str
 
 class pawn(chess_piece):
-	def __str__(self):
-		if(self.color == Color.WHITE):
+	def __init__(self, color):
+		self.color = color
+		if(color == Color.WHITE):
 			self.fen_letter = "P"
-			return u'♟'
+			self.str = u'♟'
 		else:
 			self.fen_letter = "p"
-			return u'♙'
+			self.str = u'♙'
 
 	def avail_moves(self, start_x, start_y):
 		moves = []
@@ -40,13 +41,14 @@ class pawn(chess_piece):
 		return moves
 
 class rook(chess_piece):
-	def __str__(self):
-		if(self.color == Color.WHITE):
+	def __init__(self, color):
+		self.color = color
+		if(color == Color.WHITE):
 			self.fen_letter = "R"
-			return u'♜'
+			self.str = u'♜'
 		else:
 			self.fen_letter = "r"
-			return u'♖'
+			self.str = u'♖'
 
 	def avail_moves(self, start_x, start_y):
 		moves = []
@@ -89,13 +91,14 @@ class rook(chess_piece):
 		return moves;
 
 class bishop(chess_piece):
-	def __str__(self):
-		if(self.color == Color.WHITE):
+	def __init__(self, color):
+		self.color = color
+		if(color == Color.WHITE):
 			self.fen_letter = "B"
-			return u'♝'
+			self.str = u'♝'
 		else:
 			self.fen_letter = "b"
-			return u'♗'
+			self.str = u'♗'
 
 	def avail_moves(self, start_x, start_y):
 		moves = []
@@ -138,13 +141,14 @@ class bishop(chess_piece):
 		return moves
 
 class knight(chess_piece):
-	def __str__(self):
-		if(self.color == Color.WHITE):
+	def __init__(self, color):
+		self.color = color
+		if(color == Color.WHITE):
 			self.fen_letter = "N"
-			return u'♞'
+			self.str = u'♞'
 		else:
 			self.fen_letter = "n"
-			return u'♘'
+			self.str = u'♘'
 
 	def avail_moves(self, x, y):
 		moves = [(x+2,y+1), (x-2,y+1), (x+2,y-1), (x-2,y-1), (x+1,y+2), (x-1,y+2), (x+1,y-2), (x-1,y-2)]
@@ -170,13 +174,14 @@ class knight(chess_piece):
 		return moves
 
 class queen(chess_piece):
-	def __str__(self):
-		if(self.color == Color.WHITE):
+	def __init__(self, color):
+		self.color = color
+		if(color == Color.WHITE):
 			self.fen_letter = "Q"
-			return u'♛'
+			self.str = u'♛'
 		else:
 			self.fen_letter = "q"
-			return u'♕'
+			self.str = u'♕'
 
 	def avail_moves(self, start_x, start_y):
 		moves = []
@@ -186,13 +191,14 @@ class queen(chess_piece):
 		return moves
 
 class king(chess_piece):
-	def __str__(self):
-		if(self.color == Color.WHITE):
+	def __init__(self, color):
+		self.color = color
+		if(color == Color.WHITE):
 			self.fen_letter = "K"
-			return u'♚'
+			self.str = u'♚'
 		else:
 			self.fen_letter = "k"
-			return u'♔'
+			self.str = u'♔'
 
 	def avail_moves(self, x, y):
 		moves = [(x+1,y), (x+1,y+1), (x+1,y-1), (x,y+1), (x,y-1), (x-1,y), (x-1,y+1), (x-1,y-1)]
