@@ -5,25 +5,29 @@ import math
 import time
 import subprocess
 import curses
-
+import numpy as np
 global board
 global white_turn
 global fd
 
 white_turn = True
+fen_starting_position = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
 
 class Color(enum.Enum):
 	WHITE = 0
 	BLACK = 1
 
-class pawn:
+class chess_piece:
 	def __init__(self, color):
 		self.color = color
 
+class pawn(chess_piece):
 	def __str__(self):
 		if(self.color == Color.WHITE):
+			self.fen_letter = "P"
 			return u'♟'
 		else:
+			self.fen_letter = "p"
 			return u'♙'
 
 	def avail_moves(self, start_x, start_y):
@@ -35,14 +39,13 @@ class pawn:
 
 		return moves
 
-class rook:
-	def __init__(self, color):
-		self.color = color
-
+class rook(chess_piece):
 	def __str__(self):
 		if(self.color == Color.WHITE):
+			self.fen_letter = "R"
 			return u'♜'
 		else:
+			self.fen_letter = "r"
 			return u'♖'
 
 	def avail_moves(self, start_x, start_y):
@@ -85,14 +88,13 @@ class rook:
 
 		return moves;
 
-class bishop:
-	def __init__(self, color):
-		self.color = color
-
+class bishop(chess_piece):
 	def __str__(self):
 		if(self.color == Color.WHITE):
+			self.fen_letter = "B"
 			return u'♝'
 		else:
+			self.fen_letter = "b"
 			return u'♗'
 
 	def avail_moves(self, start_x, start_y):
@@ -135,14 +137,13 @@ class bishop:
 
 		return moves
 
-class knight:
-	def __init__(self, color):
-		self.color = color
-
+class knight(chess_piece):
 	def __str__(self):
 		if(self.color == Color.WHITE):
+			self.fen_letter = "N"
 			return u'♞'
 		else:
+			self.fen_letter = "n"
 			return u'♘'
 
 	def avail_moves(self, x, y):
@@ -168,14 +169,13 @@ class knight:
 
 		return moves
 
-class queen:
-	def __init__(self, color):
-		self.color = color
-
+class queen(chess_piece):
 	def __str__(self):
 		if(self.color == Color.WHITE):
+			self.fen_letter = "Q"
 			return u'♛'
 		else:
+			self.fen_letter = "q"
 			return u'♕'
 
 	def avail_moves(self, start_x, start_y):
@@ -185,14 +185,13 @@ class queen:
 
 		return moves
 
-class king:
-	def __init__(self, color):
-		self.color = color
-
+class king(chess_piece):
 	def __str__(self):
 		if(self.color == Color.WHITE):
+			self.fen_letter = "K"
 			return u'♚'
 		else:
+			self.fen_letter = "k"
 			return u'♔'
 
 	def avail_moves(self, x, y):
@@ -234,36 +233,65 @@ dead_piece_count = {
 	u'♕' : 0,
 }
 
+def calculate_fen():
+	fen = ""
+	empty_cells = 0
+
+	for row in board:
+		for current_cell in row:
+			if(current_cell==" "):
+				empty_cells+=1
+
+			if(issubclass(type(current_cell), chess_piece)):
+				if(empty_cells!=0):
+					fen+=str(empty_cells)
+					empty_cells=0
+				fen+=current_cell.fen_letter
+
+		if(empty_cells!=0):
+			fen+=str(empty_cells)
+			empty_cells=0
+		
+		fen+="/"
+
+	fen = fen[:-1]
+
+	return fen
+
 def init_board():
 	global board
+	
+	board = np.zeros((8, 8), dtype = chess_piece) 
 
-	board = (
-		[
-			[
-				rook(Color.BLACK),
-				knight(Color.BLACK),
-				bishop(Color.BLACK),
-				queen(Color.BLACK),
-				king(Color.BLACK),
-				bishop(Color.BLACK),
-				knight(Color.BLACK),
-				rook(Color.BLACK),
-			],
-			[pawn(Color.BLACK) for _ in range(8)],
-			*[[" "] * 8 for _ in range(4)],
-			[pawn(Color.WHITE) for _ in range(8)],
-			[
-				rook(Color.WHITE),
-				knight(Color.WHITE),
-				bishop(Color.WHITE),
-				queen(Color.WHITE),
-				king(Color.WHITE),
-				bishop(Color.WHITE),
-				knight(Color.WHITE),
-				rook(Color.WHITE),
-			],
-		]
-	)
+	row = 0
+	column = 0
+
+	fen_dictionary = {
+		"r" : rook(Color.BLACK),
+		"n" : knight(Color.BLACK),
+		"b" : bishop(Color.BLACK),
+		"q" : queen(Color.BLACK),
+		"k" : king(Color.BLACK),
+		"p" : pawn(Color.BLACK),
+		"R" : rook(Color.WHITE),
+		"N" : knight(Color.WHITE),
+		"B" : bishop(Color.WHITE),
+		"Q" : queen(Color.WHITE),
+		"K" : king(Color.WHITE),
+		"P" : pawn(Color.WHITE),
+	}
+
+	for char in fen_starting_position:
+		if(char.isdigit()):
+			for i in range(int(char)):
+				board[row][column]=" "
+				column+=1
+		elif(char=="/"):
+			row+=1
+			column=0
+		else:
+			board[row][column] = fen_dictionary[char]
+			column+=1
 
 def display_board(stdscr, start_x=None, start_y=None):
 	global board
@@ -386,6 +414,13 @@ def display_board(stdscr, start_x=None, start_y=None):
 				stdscr.addstr(y, x, pawn)
 				x += 2
 
+	y+=2
+	
+	fen = calculate_fen()
+
+	x = w//2 - len("FEN: " + fen)//2 - 3
+	stdscr.addstr(y, x, "FEN: " + fen)
+
 	stdscr.refresh()
 
 def is_valid(stdscr, move):
@@ -415,6 +450,12 @@ def is_valid(stdscr, move):
 
 	if(board[start_x][start_y]==" "):
 		raise InvalidMoveException("Error: No piece there")
+
+	if(white_turn and board[start_x][start_y].color!=Color.WHITE):
+		raise InvalidMoveException("Error: White plays")
+	elif(not white_turn and board[start_x][start_y].color!=Color.BLACK):
+		raise InvalidMoveException("Error: Black plays")
+
 	display_board(stdscr, start_x, start_y)
 
 	if(len(move)<3):
@@ -442,15 +483,8 @@ def is_valid(stdscr, move):
 	except:
 		raise InvalidMoveException("Error: Give long algebraic notation")
 
-	if(white_turn and board[start_x][start_y].color!=Color.WHITE):
-		raise InvalidMoveException("Error: White plays")
-
-	if(not white_turn and board[start_x][start_y].color!=Color.BLACK):
-		raise InvalidMoveException("Error: Black plays")
-
 	if(start_x == end_x and start_y == end_y):
-		raise InvalidMoveException("Error: Can't move " + str(board[start_x][start_y]) 
-			+ "  in same location")
+		raise InvalidMoveException(" ")
 
 	if(board[end_x][end_y]!=" " and board[start_x][start_y].color == board[end_x][end_y].color):
 		raise InvalidMoveException("Error: Can't move " + str(board[start_x][start_y]) + "  on " +\
@@ -485,21 +519,24 @@ def move(stdscr):
 			display_board(stdscr)
 	
 			x = w//2 - 3//2 - 3
-			stdscr.addstr(y, x, 4 * " ")
+			stdscr.addstr(y, 0, w * " ")
 			stdscr.refresh()
 
+			continue
+		elif(len(key)!=1):
 			continue
 
 		move.append(key)
 		try:
 			valid_move = is_valid(stdscr, move)
+			stdscr.addstr(y, 0, w * " ")
 			i+=1
 		except InvalidMoveException as e:
 			display_board(stdscr)
-			stdscr.addstr(19, 4, str(e))
 
 			x = w//2 - 3//2 - 3
-			stdscr.addstr(y, x, 4 * " ")
+			stdscr.addstr(y, 0, w * " ")
+			stdscr.addstr(y, 4, str(e))
 			stdscr.refresh()
 
 			i=0
