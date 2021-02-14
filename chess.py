@@ -11,7 +11,7 @@ global white_turn
 global fd
 
 white_turn = True
-fen_starting_position = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
+fen_starting_position = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 class Color(enum.Enum):
 	WHITE = 0
@@ -20,6 +20,12 @@ class Color(enum.Enum):
 class chess_piece:
 	def __str__(self):
 		return self.str
+
+	def play_move(self, end_x, end_y):
+		board[end_x][end_y] = board[self.x][self.y]
+		board[self.x][self.y] = " "
+		self.x = end_x
+		self.y = end_y
 
 class pawn(chess_piece):
 	def __init__(self, color):
@@ -31,8 +37,11 @@ class pawn(chess_piece):
 			self.fen_letter = "p"
 			self.str = u'♙'
 
-	def avail_moves(self, start_x, start_y):
+	def avail_moves(self):
 		moves = []
+
+		start_x = self.x
+		start_y = self.y
 
 		if(board[start_x][start_y].color == Color.WHITE):
 			direction = 1
@@ -60,6 +69,9 @@ class pawn(chess_piece):
 
 		return moves
 
+	def play_move(self, end_x, end_y):
+		super().play_move(end_x, end_y)
+
 class rook(chess_piece):
 	def __init__(self, color):
 		self.color = color
@@ -69,8 +81,12 @@ class rook(chess_piece):
 		else:
 			self.fen_letter = "r"
 			self.str = u'♖'
+		self.has_moved = False
 
-	def avail_moves(self, start_x, start_y):
+	def avail_moves(self):
+		start_x = self.x
+		start_y = self.y
+
 		moves = []
 		for offset_x in reversed(range(0, start_x)):
 			if(board[offset_x][start_y] == " "):
@@ -110,6 +126,10 @@ class rook(chess_piece):
 
 		return moves;
 
+	def play_move(self, end_x, end_y):
+		super().play_move(end_x, end_y)
+		self.has_moved = True
+
 class bishop(chess_piece):
 	def __init__(self, color):
 		self.color = color
@@ -120,7 +140,10 @@ class bishop(chess_piece):
 			self.fen_letter = "b"
 			self.str = u'♗'
 
-	def avail_moves(self, start_x, start_y):
+	def avail_moves(self):
+		start_x = self.x
+		start_y = self.y
+
 		moves = []
 		for offset_x, offset_y in zip(reversed(range(0, start_x)), reversed(range(0, start_y))):
 			if(board[offset_x][offset_y] == " "):
@@ -160,6 +183,9 @@ class bishop(chess_piece):
 
 		return moves
 
+	def play_move(self, end_x, end_y):
+		super().play_move(end_x, end_y)
+
 class knight(chess_piece):
 	def __init__(self, color):
 		self.color = color
@@ -170,8 +196,19 @@ class knight(chess_piece):
 			self.fen_letter = "n"
 			self.str = u'♘'
 
-	def avail_moves(self, x, y):
-		moves = [(x+2,y+1), (x-2,y+1), (x+2,y-1), (x-2,y-1), (x+1,y+2), (x-1,y+2), (x+1,y-2), (x-1,y-2)]
+	def avail_moves(self):
+		start_x = self.x
+		start_y = self.y
+
+		moves = [(start_x+2,start_y+1), 
+				(start_x-2,start_y+1), 
+				(start_x+2,start_y-1), 
+				(start_x-2,start_y-1), 
+				(start_x+1,start_y+2), 
+				(start_x-1,start_y+2), 
+				(start_x+1,start_y-2), 
+				(start_x-1,start_y-2)]
+		
 		for cur_move in reversed(moves):
 			cur_x = cur_move[0]
 			cur_y = cur_move[1]
@@ -186,12 +223,15 @@ class knight(chess_piece):
 			# Don't remove moves to empty cell
 			try:
 				# Remove moves on your pieces
-				if board[cur_x][cur_y].color == board[x][y].color:
+				if board[cur_x][cur_y].color == board[start_x][start_y].color:
 					moves.remove(cur_move)
 			except:
 				pass
 
 		return moves
+	
+	def play_move(self, end_x, end_y):
+		super().play_move(end_x, end_y)
 
 class queen(chess_piece):
 	def __init__(self, color):
@@ -203,12 +243,18 @@ class queen(chess_piece):
 			self.fen_letter = "q"
 			self.str = u'♕'
 
-	def avail_moves(self, start_x, start_y):
+	def avail_moves(self):
+		start_x = self.x
+		start_y = self.y
+
 		moves = []
-		moves = rook.avail_moves(self, start_x, start_y)
-		moves += bishop.avail_moves(self, start_x, start_y)
+		moves = rook.avail_moves(self)
+		moves += bishop.avail_moves(self)
 
 		return moves
+	
+	def play_move(self, end_x, end_y):
+		super().play_move(end_x, end_y)
 
 class king(chess_piece):
 	def __init__(self, color):
@@ -219,9 +265,21 @@ class king(chess_piece):
 		else:
 			self.fen_letter = "k"
 			self.str = u'♔'
+		self.has_moved = False
 
-	def avail_moves(self, x, y):
-		moves = [(x+1,y), (x+1,y+1), (x+1,y-1), (x,y+1), (x,y-1), (x-1,y), (x-1,y+1), (x-1,y-1)]
+	def avail_moves(self):
+		start_x = self.x
+		start_y = self.y
+
+		moves = [(start_x+1,start_y), 
+				(start_x+1,start_y+1), 
+				(start_x+1,start_y-1), 
+				(start_x,start_y+1), 
+				(start_x,start_y-1), 
+				(start_x-1,start_y),
+				(start_x-1,start_y+1), 
+				(start_x-1,start_y-1)]
+	
 		for cur_move in reversed(moves):
 			cur_x = cur_move[0]
 			cur_y = cur_move[1]
@@ -236,12 +294,39 @@ class king(chess_piece):
 			# Don't remove moves to empty cell
 			try:
 				# Remove moves on your pieces
-				if board[cur_x][cur_y].color == board[x][y].color:
+				if board[cur_x][cur_y].color == board[start_x][start_y].color:
 					moves.remove(cur_move)
 			except:
 				pass
 
+		if(board[start_x][start_y].has_moved==False and 
+			board[start_x][start_y-1]==" " and
+			board[start_x][start_y-2]==" " and
+			board[start_x][start_y-3]==" " and
+			board[start_x][start_y-4]!=" " and
+			board[start_x][start_y-4].color==board[start_x][start_y].color and
+			board[start_x][start_y-4].has_moved==False):
+	
+			moves.append((start_x, start_y-2))
+
+		if(board[start_x][start_y].has_moved==False and 
+			board[start_x][start_y+1]==" " and
+			board[start_x][start_y+2]==" " and
+			board[start_x][start_y+3]!=" " and
+			board[start_x][start_y+3].color==board[start_x][start_y].color and
+			board[start_x][start_y+3].has_moved==False):
+	
+			moves.append((start_x, start_y+2))
+
 		return moves
+	
+	def play_move(self, end_x, end_y):
+		if(end_y==self.y-2):
+			board[self.x][self.y-4].play_move(self.x, end_y+1)
+		if(end_y==self.y+2):
+			board[self.x][self.y+3].play_move(self.x, end_y-1)
+		super().play_move(end_x, end_y)
+		self.has_moved = True
 
 class InvalidMoveException(Exception):
 	pass
@@ -292,22 +377,7 @@ def init_board():
 	row = 0
 	column = 0
 
-	fen_dictionary = {
-		"r" : rook(Color.BLACK),
-		"n" : knight(Color.BLACK),
-		"b" : bishop(Color.BLACK),
-		"q" : queen(Color.BLACK),
-		"k" : king(Color.BLACK),
-		"p" : pawn(Color.BLACK),
-		"R" : rook(Color.WHITE),
-		"N" : knight(Color.WHITE),
-		"B" : bishop(Color.WHITE),
-		"Q" : queen(Color.WHITE),
-		"K" : king(Color.WHITE),
-		"P" : pawn(Color.WHITE),
-	}
-
-	for char in fen_starting_position:
+	for char in fen_starting_position.split()[0]:
 		if(char.isdigit()):
 			for i in range(int(char)):
 				board[row][column]=" "
@@ -316,7 +386,33 @@ def init_board():
 			row+=1
 			column=0
 		else:
-			board[row][column] = fen_dictionary[char]
+			if(char == "r"):
+				board[row][column] = rook(Color.BLACK)
+			elif(char == "R"):
+				board[row][column] = rook(Color.WHITE)
+			elif(char == "n"):
+				board[row][column] = knight(Color.BLACK)
+			elif(char == "N"):
+				board[row][column] =knight(Color.WHITE)
+			elif(char == "b"):
+				board[row][column] = bishop(Color.BLACK)
+			elif(char == "B"):
+				board[row][column] = bishop(Color.WHITE)
+			elif(char == "q"):
+				board[row][column] = queen(Color.BLACK)
+			elif(char == "Q"):
+				board[row][column] = queen(Color.WHITE)
+			elif(char == "k"):
+				board[row][column] = king(Color.BLACK)
+			elif(char == "K"):
+				board[row][column] = king(Color.WHITE)
+			elif(char == "p"):
+				board[row][column] = pawn(Color.BLACK)
+			elif(char == "P"):
+				board[row][column] = pawn(Color.WHITE)
+
+			board[row][column].x = row
+			board[row][column].y = column
 			column+=1
 
 def display_board(stdscr, start_x=None, start_y=None):
@@ -364,9 +460,9 @@ def display_board(stdscr, start_x=None, start_y=None):
 	y = 7
 	
 	if(start_x!=None and start_y!=None):
-		moves = board[start_x][start_y].avail_moves(start_x, start_y)
+		moves = board[start_x][start_y].avail_moves()
 
-	white_cell = True
+	white_cell = False
 	for i, row in enumerate(board):
 		x = w//2 - 34//2
 		cur_string = str(row_num)
@@ -516,7 +612,7 @@ def is_valid(stdscr, move):
 		raise InvalidMoveException("Error: Can't move " + str(board[start_x][start_y]) + "  on " +\
 			str(board[end_x][end_y]) + " (Your piece)")
 
-	moves = board[start_x][start_y].avail_moves(start_x, start_y)
+	moves = board[start_x][start_y].avail_moves()
 	if((end_x, end_y) not in moves):
 		raise InvalidMoveException("Error: Can't move " + str(board[start_x][start_y]) 
 			+ "  there")
@@ -580,8 +676,7 @@ def move(stdscr):
 	except KeyError:
 		pass
 
-	board[end_x][end_y] = board[start_x][start_y]
-	board[start_x][start_y] = " "
+	board[start_x][start_y].play_move(end_x, end_y)
 
 	white_turn = not white_turn
 
