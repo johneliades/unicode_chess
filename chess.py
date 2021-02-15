@@ -16,7 +16,7 @@ fen_starting_position = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 
 black_pieces = []
 white_pieces = []
 
-debug = True
+debug = False
 
 class Color(enum.Enum):
 	WHITE = 0
