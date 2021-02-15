@@ -1,0 +1,19 @@
++=======+
+|BUGLIST|
++=======+
+
++=======+
+|EZ FAST|
++=======+
+
+#en passant
+#king checks
+#castling under check
+#pawn promotions
+
++=======+
+| LATER |
++=======+
+
+#AI for pc
+#maybe 2 players with sockets

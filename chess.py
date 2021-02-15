@@ -16,7 +16,7 @@ fen_starting_position = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 
 black_pieces = []
 white_pieces = []
 
-debug = False
+debug = True
 
 class Color(enum.Enum):
 	WHITE = 0
@@ -27,6 +27,16 @@ class chess_piece:
 		return self.str
 
 	def play_move(self, end_x, end_y):
+		try:
+			black_pieces.remove(board[end_x][end_y])
+		except:
+			pass
+
+		try:
+			white_pieces.remove(board[end_x][end_y])
+		except:
+			pass
+
 		board[end_x][end_y] = board[self.x][self.y]
 		board[self.x][self.y] = " "
 		self.x = end_x
