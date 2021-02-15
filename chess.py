@@ -424,8 +424,11 @@ def display_board(stdscr, start_x=None, start_y=None):
 
 	author = "𝓒𝓱𝓮𝓼𝓼 𝓫𝔂 𝓙𝓸𝓱𝓷 𝓔𝓵𝓲𝓪𝓭𝓮𝓼"
 	x = w//2 - len(author)//2
-	y = h//2 - 10
-	stdscr.addstr(y, x, author)
+	y = 2
+	try:
+		stdscr.addstr(y, x, author)
+	except curses.error:
+		pass
 	stdscr.refresh()
 
 	total = dead_piece_count[u'♟'] + 3 *\
@@ -435,7 +438,11 @@ def display_board(stdscr, start_x=None, start_y=None):
 	total = "Points: " + str(total)
 	x = 4
 	y = 5
-	stdscr.addstr(y, x, total)
+	try:
+		stdscr.addstr(y, x, total)
+	except curses.error:
+		pass
+
 	stdscr.refresh()
 
 	x = 4 + len(total) + 1
@@ -466,7 +473,10 @@ def display_board(stdscr, start_x=None, start_y=None):
 	for i, row in enumerate(board):
 		x = w//2 - 34//2
 		cur_string = str(row_num)
-		stdscr.addstr(y, x, cur_string)
+		try:
+			stdscr.addstr(y, x, cur_string)
+		except curses.error:
+			pass
 		stdscr.refresh()
 
 		x+=2
@@ -492,12 +502,18 @@ def display_board(stdscr, start_x=None, start_y=None):
 			elif(white_cell):
 				stdscr.attron(curses.color_pair(1))
 				cur_string =  " " + str(current) + "  " 
-				stdscr.addstr(y, x, cur_string)
+				try:
+					stdscr.addstr(y, x, cur_string)
+				except curses.error:
+					pass
 				stdscr.attroff(curses.color_pair(1))
 			else:
 				stdscr.attron(curses.color_pair(2))
 				cur_string =  " " + str(current) + "  " 
-				stdscr.addstr(y, x, cur_string)
+				try:
+					stdscr.addstr(y, x, cur_string)
+				except curses.error:
+					pass
 				stdscr.attroff(curses.color_pair(2))
 			
 			x+=len(cur_string)
@@ -517,7 +533,10 @@ def display_board(stdscr, start_x=None, start_y=None):
 	letters += "    "
 
 	x = w//2 - len(letters)//2
-	stdscr.addstr(y, x, letters)
+	try:
+		stdscr.addstr(y, x, letters)
+	except curses.error:
+		pass
 
 	total = dead_piece_count[u'♙'] + 3 *\
 		(dead_piece_count[u'♘'] + dead_piece_count[u'♗']) +\
@@ -526,7 +545,11 @@ def display_board(stdscr, start_x=None, start_y=None):
 	total = "Points: " + str(total)
 	x = 4
 	y += 2
-	stdscr.addstr(y, x, total)
+	
+	try:
+		stdscr.addstr(y, x, total)
+	except curses.error:
+		pass
 	stdscr.refresh()
 
 	x = 4 + len(total) + 1
@@ -541,7 +564,10 @@ def display_board(stdscr, start_x=None, start_y=None):
 	fen = calculate_fen()
 
 	x = w//2 - len("FEN: " + fen)//2 - 3
-	stdscr.addstr(y, x, "FEN: " + fen)
+	try:
+		stdscr.addstr(y, x, "FEN: " + fen)
+	except curses.error:
+		pass
 
 	stdscr.refresh()
 
@@ -629,11 +655,14 @@ def move(stdscr):
 	i=0
 	while(len(move)!=4):
 		x = w//2 - len("***")//2 - 3
-		stdscr.addstr(y, x, i * "*")
+		try:
+			stdscr.addstr(y, x, i * "*")
+		except curses.error:
+			pass
 		stdscr.refresh()
 
 		key = stdscr.getkey()
-		if(key == 'KEY_BACKSPACE'):
+		if(key == 'KEY_BACKSPACE' or key == 'KEY_RESIZE'):
 			if(i>0):
 				i-=1
 				move = move[:len(move)-1]
@@ -641,7 +670,12 @@ def move(stdscr):
 			display_board(stdscr)
 	
 			x = w//2 - 3//2 - 3
-			stdscr.addstr(y, 0, w * " ")
+			
+			try:
+				stdscr.addstr(y, 0, w * " ")
+			except curses.error:
+				pass
+
 			stdscr.refresh()
 
 			continue
