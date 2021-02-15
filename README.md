@@ -3,7 +3,7 @@
 A terminal based chess game that uses the unicode characters of chess pieces 
 and appropriate terminal coloring.
 
-![Image of chess](https://github.com/johneliades/unicode_chess/blob/master/preview.png)
+![Image of chess](https://github.com/johneliades/unicode_chess/blob/main/preview.png)
 
 ## Clone
 
