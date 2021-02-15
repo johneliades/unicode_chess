@@ -13,6 +13,11 @@ global fd
 white_turn = True
 fen_starting_position = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
+black_pieces = []
+white_pieces = []
+
+debug = False
+
 class Color(enum.Enum):
 	WHITE = 0
 	BLACK = 1
@@ -52,20 +57,30 @@ class pawn(chess_piece):
 
 		if(board[start_x-1*direction][start_y]==" "):
 			moves.append((start_x - 1*direction, start_y))
-			if(board[start_x-2*direction][start_y]==" " 
-				and start_x==starting_row):
-				
-				moves.append((start_x - 2*direction, start_y))
+			
+			try:
+				if(start_x-2*direction>=0 and
+					board[start_x-2*direction][start_y]==" " and
+					start_x==starting_row):
+					
+					moves.append((start_x - 2*direction, start_y))
+			except:
+				pass
 
-		if(board[start_x-1*direction][start_y-1]!=" " and
-			board[start_x-1*direction][start_y-1].color!=board[start_x][start_y].color):
+		try:
+			if(start_y-1>=0 and
+				board[start_x-1*direction][start_y-1]!=" " and
+				board[start_x-1*direction][start_y-1].color!=board[start_x][start_y].color):
 
-				moves.append((start_x-1*direction, start_y-1))
+					moves.append((start_x-1*direction, start_y-1))
 
-		if(board[start_x-1*direction][start_y+1]!=" " and
-			board[start_x-1*direction][start_y+1].color!=board[start_x][start_y].color):
+			if(start_y+1>=0 and
+				board[start_x-1*direction][start_y+1]!=" " and
+				board[start_x-1*direction][start_y+1].color!=board[start_x][start_y].color):
 
-				moves.append((start_x-1*direction, start_y+1))
+					moves.append((start_x-1*direction, start_y+1))
+		except:
+			pass
 
 		return moves
 
@@ -220,6 +235,10 @@ class knight(chess_piece):
 				moves.remove(cur_move)
 				continue
 	
+			if(cur_x<0 or cur_y<0):
+				moves.remove(cur_move)
+				continue
+
 			# Don't remove moves to empty cell
 			try:
 				# Remove moves on your pieces
@@ -271,14 +290,14 @@ class king(chess_piece):
 		start_x = self.x
 		start_y = self.y
 
-		moves = [(start_x+1,start_y), 
-				(start_x+1,start_y+1), 
-				(start_x+1,start_y-1), 
-				(start_x,start_y+1), 
-				(start_x,start_y-1), 
-				(start_x-1,start_y),
-				(start_x-1,start_y+1), 
-				(start_x-1,start_y-1)]
+		moves = [(start_x+1, start_y), 
+				(start_x+1, start_y+1), 
+				(start_x+1, start_y-1), 
+				(start_x, start_y+1), 
+				(start_x, start_y-1), 
+				(start_x-1, start_y),
+				(start_x-1, start_y+1), 
+				(start_x-1, start_y-1)]
 	
 		for cur_move in reversed(moves):
 			cur_x = cur_move[0]
@@ -290,7 +309,11 @@ class king(chess_piece):
 			except:
 				moves.remove(cur_move)
 				continue
-	
+
+			if(cur_x<0 or cur_y<0):
+				moves.remove(cur_move)
+				continue
+
 			# Don't remove moves to empty cell
 			try:
 				# Remove moves on your pieces
@@ -299,24 +322,29 @@ class king(chess_piece):
 			except:
 				pass
 
-		if(board[start_x][start_y].has_moved==False and 
-			board[start_x][start_y-1]==" " and
-			board[start_x][start_y-2]==" " and
-			board[start_x][start_y-3]==" " and
-			board[start_x][start_y-4]!=" " and
-			board[start_x][start_y-4].color==board[start_x][start_y].color and
-			board[start_x][start_y-4].has_moved==False):
-	
-			moves.append((start_x, start_y-2))
+		try:
+			if(start_y-1>=0 and start_y-2>=0 and start_y-3>=0 and start_y-4>=0 and
+				board[start_x][start_y].has_moved==False and 
+				board[start_x][start_y-1]==" " and
+				board[start_x][start_y-2]==" " and
+				board[start_x][start_y-3]==" " and
+				board[start_x][start_y-4]!=" " and
+				board[start_x][start_y-4].color==board[start_x][start_y].color and
+				board[start_x][start_y-4].has_moved==False):
+		
+				moves.append((start_x, start_y-2))
 
-		if(board[start_x][start_y].has_moved==False and 
-			board[start_x][start_y+1]==" " and
-			board[start_x][start_y+2]==" " and
-			board[start_x][start_y+3]!=" " and
-			board[start_x][start_y+3].color==board[start_x][start_y].color and
-			board[start_x][start_y+3].has_moved==False):
-	
-			moves.append((start_x, start_y+2))
+			if(start_y+1>=0 and start_y+2>=0 and start_y+3>=0 and
+				board[start_x][start_y].has_moved==False and 
+				board[start_x][start_y+1]==" " and
+				board[start_x][start_y+2]==" " and
+				board[start_x][start_y+3]!=" " and
+				board[start_x][start_y+3].color==board[start_x][start_y].color and
+				board[start_x][start_y+3].has_moved==False):
+		
+				moves.append((start_x, start_y+2))
+		except:
+			pass
 
 		return moves
 	
@@ -410,6 +438,11 @@ def init_board():
 				board[row][column] = pawn(Color.BLACK)
 			elif(char == "P"):
 				board[row][column] = pawn(Color.WHITE)
+
+			if(char.isupper()):
+				white_pieces.append(board[row][column])
+			else:
+				black_pieces.append(board[row][column])
 
 			board[row][column].x = row
 			board[row][column].y = column
@@ -568,8 +601,23 @@ def display_board(stdscr, start_x=None, start_y=None):
 		stdscr.addstr(y, x, "FEN: " + fen)
 	except curses.error:
 		pass
-
+	
 	stdscr.refresh()
+
+	if(debug):
+		test = 23
+		for piece in black_pieces:
+			stdscr.addstr(test, 0, str(piece) + " " + str(piece.avail_moves()))
+			test+=1
+
+			stdscr.refresh()
+
+		test = 23
+		for piece in white_pieces:
+			stdscr.addstr(test, w//2, str(piece) + " " + str(piece.avail_moves()))
+			test+=1
+
+			stdscr.refresh()
 
 def is_valid(stdscr, move):
 	move = [char for char in move]
