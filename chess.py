@@ -9,12 +9,15 @@ import numpy as np
 global board
 global white_turn
 global fd
+from copy import copy, deepcopy
 
 white_turn = True
 fen_starting_position = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 black_pieces = []
 white_pieces = []
+
+en_passant_pawn = None
 
 debug = False
 
@@ -26,7 +29,16 @@ class chess_piece:
 	def __str__(self):
 		return self.str
 
+	def is_pos_valid(self, values):
+		return len([x for x in values if x>=0 and x<8]) == len(values)
+
+	def is_enemy_piece(self, test_x, test_y):
+		return board[test_x][test_y]!=" " and board[
+			self.x][self.y].color!=board[test_x][test_y].color 
+
 	def play_move(self, end_x, end_y):
+		global en_passant_pawn
+
 		try:
 			black_pieces.remove(board[end_x][end_y])
 		except:
@@ -41,6 +53,7 @@ class chess_piece:
 		board[self.x][self.y] = " "
 		self.x = end_x
 		self.y = end_y
+		en_passant_pawn=None
 
 class pawn(chess_piece):
 	def __init__(self, color):
@@ -48,9 +61,13 @@ class pawn(chess_piece):
 		if(color == Color.WHITE):
 			self.fen_letter = "P"
 			self.str = u'♟'
+			self.direction = 1
+			self.starting_row = 6
 		else:
 			self.fen_letter = "p"
 			self.str = u'♙'
+			self.direction = -1
+			self.starting_row = 1
 
 	def avail_moves(self):
 		moves = []
@@ -58,44 +75,73 @@ class pawn(chess_piece):
 		start_x = self.x
 		start_y = self.y
 
-		if(board[start_x][start_y].color == Color.WHITE):
-			direction = 1
-			starting_row = 6
-		else:
-			direction = -1
-			starting_row = 1
-
-		if(board[start_x-1*direction][start_y]==" "):
-			moves.append((start_x - 1*direction, start_y))
+		if(board[start_x-1*self.direction][start_y]==" "):
+			moves.append((start_x - 1*self.direction, start_y))
 			
-			try:
-				if(start_x-2*direction>=0 and
-					board[start_x-2*direction][start_y]==" " and
-					start_x==starting_row):
-					
-					moves.append((start_x - 2*direction, start_y))
-			except:
-				pass
+			if(super().is_pos_valid((start_x-2*self.direction, start_y)) and
+				board[start_x-2*self.direction][start_y]==" " and
+				start_x==self.starting_row):
+				
+				moves.append((start_x - 2*self.direction, start_y))
 
-		try:
-			if(start_y-1>=0 and
-				board[start_x-1*direction][start_y-1]!=" " and
-				board[start_x-1*direction][start_y-1].color!=board[start_x][start_y].color):
+		if(super().is_pos_valid((start_x-1*self.direction, start_y-1)) and
+			board[start_x][start_y].is_enemy_piece(start_x-1*self.direction, start_y-1)):
 
-					moves.append((start_x-1*direction, start_y-1))
+				moves.append((start_x-1*self.direction, start_y-1))
 
-			if(start_y+1>=0 and
-				board[start_x-1*direction][start_y+1]!=" " and
-				board[start_x-1*direction][start_y+1].color!=board[start_x][start_y].color):
+		if(super().is_pos_valid((start_x-1*self.direction, start_y+1)) and
+			board[start_x][start_y].is_enemy_piece(start_x-1*self.direction, start_y+1)):
 
-					moves.append((start_x-1*direction, start_y+1))
-		except:
-			pass
+				moves.append((start_x-1*self.direction, start_y+1))
+
+		if(super().is_pos_valid((start_x, start_y-1)) and
+			board[start_x][start_y].is_enemy_piece(start_x, start_y-1) and
+			board[start_x][start_y-1]==en_passant_pawn):
+
+				moves.append((start_x-1*self.direction, start_y-1))
+
+		if(super().is_pos_valid((start_x, start_y+1)) and
+			board[start_x][start_y].is_enemy_piece(start_x, start_y+1) and			
+			board[start_x][start_y+1]==en_passant_pawn):
+
+				moves.append((start_x-1*self.direction, start_y+1))
 
 		return moves
 
 	def play_move(self, end_x, end_y):
+		global en_passant_pawn
+
+		start_x = self.x
+
+		if(super().is_pos_valid((self.y-1,)) and
+			board[self.x][self.y-1]==en_passant_pawn and end_y==self.y-1):
+			board[self.x][self.y-1]=" "
+			try:
+				black_pieces.remove(board[end_x][end_y])
+			except:
+				pass
+
+			try:
+				white_pieces.remove(board[end_x][end_y])
+			except:
+				pass
+		elif(super().is_pos_valid((self.y+1,)) and
+			board[self.x][self.y+1]==en_passant_pawn and end_y==self.y+1):
+			board[self.x][self.y+1]=" "
+			try:
+				black_pieces.remove(board[end_x][end_y])
+			except:
+				pass
+
+			try:
+				white_pieces.remove(board[end_x][end_y])
+			except:
+				pass
+
 		super().play_move(end_x, end_y)
+
+		if(start_x-2*self.direction == end_x):
+			en_passant_pawn=self
 
 class rook(chess_piece):
 	def __init__(self, color):
@@ -109,42 +155,39 @@ class rook(chess_piece):
 		self.has_moved = False
 
 	def avail_moves(self):
-		start_x = self.x
-		start_y = self.y
-
 		moves = []
-		for offset_x in reversed(range(0, start_x)):
-			if(board[offset_x][start_y] == " "):
-				moves.append((offset_x, start_y))
-			elif(board[offset_x][start_y].color != board[start_x][start_y].color):
-				moves.append((offset_x, start_y))
+		for offset_x in reversed(range(0, self.x)):
+			if(board[offset_x][self.y] == " "):
+				moves.append((offset_x, self.y))
+			elif(board[offset_x][self.y].color != board[self.x][self.y].color):
+				moves.append((offset_x, self.y))
 				break	
 			else:
 				break
 		
-		for offset_x in range(start_x+1, 8):
-			if(board[offset_x][start_y] == " "):
-				moves.append((offset_x, start_y))
-			elif(board[offset_x][start_y].color != board[start_x][start_y].color):
-				moves.append((offset_x, start_y))
+		for offset_x in range(self.x+1, 8):
+			if(board[offset_x][self.y] == " "):
+				moves.append((offset_x, self.y))
+			elif(board[offset_x][self.y].color != board[self.x][self.y].color):
+				moves.append((offset_x, self.y))
 				break	
 			else:
 				break
 
-		for offset_y in reversed(range(0, start_y)):
-			if(board[start_x][offset_y] == " "):
-				moves.append((start_x, offset_y))
-			elif(board[start_x][offset_y].color != board[start_x][start_y].color):
-				moves.append((start_x, offset_y))
+		for offset_y in reversed(range(0, self.y)):
+			if(board[self.x][offset_y] == " "):
+				moves.append((self.x, offset_y))
+			elif(board[self.x][offset_y].color != board[self.x][self.y].color):
+				moves.append((self.x, offset_y))
 				break	
 			else:
 				break
 
-		for offset_y in range(start_y+1, 8):
-			if(board[start_x][offset_y] == " "):
-				moves.append((start_x, offset_y))
-			elif(board[start_x][offset_y].color != board[start_x][start_y].color):
-				moves.append((start_x, offset_y))
+		for offset_y in range(self.y+1, 8):
+			if(board[self.x][offset_y] == " "):
+				moves.append((self.x, offset_y))
+			elif(board[self.x][offset_y].color != board[self.x][self.y].color):
+				moves.append((self.x, offset_y))
 				break	
 			else:
 				break
@@ -166,41 +209,38 @@ class bishop(chess_piece):
 			self.str = u'♗'
 
 	def avail_moves(self):
-		start_x = self.x
-		start_y = self.y
-
 		moves = []
-		for offset_x, offset_y in zip(reversed(range(0, start_x)), reversed(range(0, start_y))):
+		for offset_x, offset_y in zip(reversed(range(0, self.x)), reversed(range(0, self.y))):
 			if(board[offset_x][offset_y] == " "):
 				moves.append((offset_x, offset_y))
-			elif(board[offset_x][offset_y].color != board[start_x][start_y].color):
+			elif(board[offset_x][offset_y].color != board[self.x][self.y].color):
 				moves.append((offset_x, offset_y))
 				break	
 			else:
 				break
 		
-		for offset_x, offset_y in zip(range(start_x+1, 8), range(start_y+1, 8)):
+		for offset_x, offset_y in zip(range(self.x+1, 8), range(self.y+1, 8)):
 			if(board[offset_x][offset_y] == " "):
 				moves.append((offset_x, offset_y))
-			elif(board[offset_x][offset_y].color != board[start_x][start_y].color):
+			elif(board[offset_x][offset_y].color != board[self.x][self.y].color):
 				moves.append((offset_x, offset_y))
 				break	
 			else:
 				break
 
-		for offset_x, offset_y in zip(range(start_x+1, 8), reversed(range(0, start_y))):
+		for offset_x, offset_y in zip(range(self.x+1, 8), reversed(range(0, self.y))):
 			if(board[offset_x][offset_y] == " "):
 				moves.append((offset_x, offset_y))
-			elif(board[offset_x][offset_y].color != board[start_x][start_y].color):
+			elif(board[offset_x][offset_y].color != board[self.x][self.y].color):
 				moves.append((offset_x, offset_y))
 				break	
 			else:
 				break
 
-		for offset_x, offset_y in zip(reversed(range(0, start_x)), range(start_y+1, 8)):
+		for offset_x, offset_y in zip(reversed(range(0, self.x)), range(self.y+1, 8)):
 			if(board[offset_x][offset_y] == " "):
 				moves.append((offset_x, offset_y))
-			elif(board[offset_x][offset_y].color != board[start_x][start_y].color):
+			elif(board[offset_x][offset_y].color != board[self.x][self.y].color):
 				moves.append((offset_x, offset_y))
 				break	
 			else:
@@ -222,40 +262,31 @@ class knight(chess_piece):
 			self.str = u'♘'
 
 	def avail_moves(self):
-		start_x = self.x
-		start_y = self.y
-
-		moves = [(start_x+2,start_y+1), 
-				(start_x-2,start_y+1), 
-				(start_x+2,start_y-1), 
-				(start_x-2,start_y-1), 
-				(start_x+1,start_y+2), 
-				(start_x-1,start_y+2), 
-				(start_x+1,start_y-2), 
-				(start_x-1,start_y-2)]
+		moves = [(self.x+2, self.y+1), 
+				(self.x-2, self.y+1), 
+				(self.x+2, self.y-1), 
+				(self.x-2, self.y-1), 
+				(self.x+1, self.y+2), 
+				(self.x-1, self.y+2), 
+				(self.x+1, self.y-2), 
+				(self.x-1, self.y-2)]
 		
 		for cur_move in reversed(moves):
 			cur_x = cur_move[0]
 			cur_y = cur_move[1]
 
 			# Remove out of range moves
-			try:
-				board[cur_x][cur_y]
-			except:
-				moves.remove(cur_move)
-				continue
-	
-			if(cur_x<0 or cur_y<0):
+			if(not super().is_pos_valid((cur_x, cur_y))):
 				moves.remove(cur_move)
 				continue
 
 			# Don't remove moves to empty cell
-			try:
-				# Remove moves on your pieces
-				if board[cur_x][cur_y].color == board[start_x][start_y].color:
-					moves.remove(cur_move)
-			except:
-				pass
+			if(board[cur_x][cur_y]==" "):
+				continue
+
+			# Remove moves on your pieces
+			if board[cur_x][cur_y].color == board[self.x][ self.y].color:
+				moves.remove(cur_move)
 
 		return moves
 	
@@ -273,9 +304,6 @@ class queen(chess_piece):
 			self.str = u'♕'
 
 	def avail_moves(self):
-		start_x = self.x
-		start_y = self.y
-
 		moves = []
 		moves = rook.avail_moves(self)
 		moves += bishop.avail_moves(self)
@@ -297,64 +325,52 @@ class king(chess_piece):
 		self.has_moved = False
 
 	def avail_moves(self):
-		start_x = self.x
-		start_y = self.y
-
-		moves = [(start_x+1, start_y), 
-				(start_x+1, start_y+1), 
-				(start_x+1, start_y-1), 
-				(start_x, start_y+1), 
-				(start_x, start_y-1), 
-				(start_x-1, start_y),
-				(start_x-1, start_y+1), 
-				(start_x-1, start_y-1)]
+		moves = [(self.x+1, self.y), 
+				(self.x+1, self.y+1), 
+				(self.x+1, self.y-1), 
+				(self.x, self.y+1), 
+				(self.x, self.y-1), 
+				(self.x-1, self.y),
+				(self.x-1, self.y+1), 
+				(self.x-1, self.y-1)]
 	
 		for cur_move in reversed(moves):
 			cur_x = cur_move[0]
 			cur_y = cur_move[1]
 
 			# Remove out of range moves
-			try:
-				board[cur_x][cur_y]
-			except:
-				moves.remove(cur_move)
-				continue
-
-			if(cur_x<0 or cur_y<0):
+			if(not super().is_pos_valid((cur_x, cur_y))):
 				moves.remove(cur_move)
 				continue
 
 			# Don't remove moves to empty cell
-			try:
-				# Remove moves on your pieces
-				if board[cur_x][cur_y].color == board[start_x][start_y].color:
-					moves.remove(cur_move)
-			except:
-				pass
+			if(board[cur_x][cur_y]==" "):
+				continue
 
-		try:
-			if(start_y-1>=0 and start_y-2>=0 and start_y-3>=0 and start_y-4>=0 and
-				board[start_x][start_y].has_moved==False and 
-				board[start_x][start_y-1]==" " and
-				board[start_x][start_y-2]==" " and
-				board[start_x][start_y-3]==" " and
-				board[start_x][start_y-4]!=" " and
-				board[start_x][start_y-4].color==board[start_x][start_y].color and
-				board[start_x][start_y-4].has_moved==False):
-		
-				moves.append((start_x, start_y-2))
+			# Remove moves on your pieces
+			if board[cur_x][cur_y].color == board[self.x][self.y].color:
+				moves.remove(cur_move)
 
-			if(start_y+1>=0 and start_y+2>=0 and start_y+3>=0 and
-				board[start_x][start_y].has_moved==False and 
-				board[start_x][start_y+1]==" " and
-				board[start_x][start_y+2]==" " and
-				board[start_x][start_y+3]!=" " and
-				board[start_x][start_y+3].color==board[start_x][start_y].color and
-				board[start_x][start_y+3].has_moved==False):
-		
-				moves.append((start_x, start_y+2))
-		except:
-			pass
+		if(super().is_pos_valid((self.y-1, self.y-2, self.y-3, self.y-4)) and
+			board[self.x][self.y].has_moved==False and 
+			board[self.x][self.y-1]==" " and
+			board[self.x][self.y-2]==" " and
+			board[self.x][self.y-3]==" " and
+			board[self.x][self.y-4]!=" " and
+			board[self.x][self.y-4].color==board[self.x][self.y].color and
+			board[self.x][self.y-4].has_moved==False):
+	
+			moves.append((self.x, self.y-2))
+
+		if(super().is_pos_valid((self.y+1, self.y+2, self.y+3)) and
+			board[self.x][self.y].has_moved==False and 
+			board[self.x][self.y+1]==" " and
+			board[self.x][self.y+2]==" " and
+			board[self.x][self.y+3]!=" " and
+			board[self.x][self.y+3].color==board[self.x][self.y].color and
+			board[self.x][self.y+3].has_moved==False):
+	
+			moves.append((self.x, self.y+2))
 
 		return moves
 	
@@ -405,17 +421,30 @@ def calculate_fen():
 
 	fen = fen[:-1]
 
+	if(white_turn):
+		fen += " " + "w"
+	else:
+		fen += " " + "b"
+
 	return fen
 
 def init_board():
 	global board
+	global white_turn
 	
 	board = np.zeros((8, 8), dtype = chess_piece) 
 
 	row = 0
 	column = 0
 
-	for char in fen_starting_position.split()[0]:
+	split_fen = fen_starting_position.split()
+	position = split_fen[0]
+	if(split_fen[1]=="w"):
+		white_turn = True
+	else:
+		white_turn = False
+	
+	for char in position:
 		if(char.isdigit()):
 			for i in range(int(char)):
 				board[row][column]=" "
@@ -629,7 +658,7 @@ def display_board(stdscr, start_x=None, start_y=None):
 
 			stdscr.refresh()
 
-def is_valid(stdscr, move):
+def is_move_valid(stdscr, move):
 	move = [char for char in move]
 
 	if(ord(move[0].upper()) not in range(ord('A'), ord('i'))):
@@ -703,8 +732,55 @@ def is_valid(stdscr, move):
 
 	return [start_x, start_y, end_x, end_y]
 
+def recursion_test(stdscr, depth):
+	global board
+	global white_pieces
+	global black_pieces
+	global white_turn
+
+	if(depth==0):
+		return 1
+
+	num_positions = 0
+
+	moves = []
+
+	if(white_turn):
+		for piece in white_pieces:
+			for move in piece.avail_moves():
+				moves.append((piece.x, piece.y, move[0], move[1]))
+	else:
+		for piece in black_pieces:
+			for move in piece.avail_moves():
+				moves.append((piece.x, piece.y, move[0], move[1]))
+
+	for move in moves:
+		board2 = deepcopy(board)
+		whites = deepcopy(white_pieces)
+		blacks = deepcopy(black_pieces)
+		turn = deepcopy(white_turn)
+
+		start_x, start_y, end_x, end_y = move
+
+		board[start_x][start_y].play_move(end_x, end_y)
+		white_turn = not white_turn
+
+		display_board(stdscr)
+		#time.sleep(0.01)
+		num_positions += recursion_test(stdscr, depth-1)
+
+		board = deepcopy(board2)
+		white_pieces = deepcopy(whites)
+		black_pieces = deepcopy(blacks)
+		white_turn = deepcopy(turn)
+
+	return num_positions
+
 def move(stdscr):
 	global white_turn
+	global board
+	global white_pieces
+	global black_pieces
 
 	h, w = stdscr.getmaxyx()
 
@@ -742,7 +818,7 @@ def move(stdscr):
 
 		move.append(key)
 		try:
-			valid_move = is_valid(stdscr, move)
+			valid_move = is_move_valid(stdscr, move)
 			stdscr.addstr(y, 0, w * " ")
 			i+=1
 		except InvalidMoveException as e:
@@ -755,14 +831,12 @@ def move(stdscr):
 
 			i=0
 			move.clear()
-
 	stdscr.refresh()
 
 	start_x = valid_move[0]
 	start_y = valid_move[1]
 	end_x = valid_move[2]
 	end_y = valid_move[3]
-
 	try:
 		dead_piece_count[str(board[end_x][end_y])] += 1
 	except KeyError:
@@ -771,6 +845,13 @@ def move(stdscr):
 	board[start_x][start_y].play_move(end_x, end_y)
 
 	white_turn = not white_turn
+
+	# move_count = recursion_test(stdscr, 2)
+	# x = w//2 - 3//2 - 3
+	# stdscr.addstr(21, x, str(move_count))
+	# stdscr.refresh()
+
+	# time.sleep(10)
 
 def main(stdscr):
 	global fd

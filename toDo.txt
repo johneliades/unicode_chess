@@ -6,7 +6,6 @@
 |EZ FAST|
 +=======+
 
-#en passant
 #king checks
 #castling under check
 #pawn promotions
