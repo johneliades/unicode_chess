@@ -734,9 +734,9 @@ def is_move_valid(stdscr, move):
 
 def recursion_test(stdscr, depth):
 	global board
+	global white_turn
 	global white_pieces
 	global black_pieces
-	global white_turn
 
 	if(depth==0):
 		return 1
@@ -745,19 +745,35 @@ def recursion_test(stdscr, depth):
 
 	moves = []
 
-	if(white_turn):
-		for piece in white_pieces:
-			for move in piece.avail_moves():
-				moves.append((piece.x, piece.y, move[0], move[1]))
-	else:
-		for piece in black_pieces:
-			for move in piece.avail_moves():
-				moves.append((piece.x, piece.y, move[0], move[1]))
+	white_pieces = []
+
+	for row in board:
+		for column in row:
+			if(column!=" " and column.color==Color.WHITE):
+				white_pieces.append(column)
+
+	black_pieces = []
+
+	for row in board:
+		for column in row:
+			if(column!=" " and column.color==Color.BLACK):
+				black_pieces.append(column)
+
+	try:
+		if(white_turn):
+			for piece in white_pieces:
+				for move in piece.avail_moves():
+					moves.append((piece.x, piece.y, move[0], move[1]))
+		else:
+			for piece in black_pieces:
+				for move in piece.avail_moves():
+					moves.append((piece.x, piece.y, move[0], move[1]))
+	except:
+		display_board(stdscr)
+		time.sleep(100)
 
 	for move in moves:
 		board2 = deepcopy(board)
-		whites = deepcopy(white_pieces)
-		blacks = deepcopy(black_pieces)
 		turn = deepcopy(white_turn)
 
 		start_x, start_y, end_x, end_y = move
@@ -766,12 +782,10 @@ def recursion_test(stdscr, depth):
 		white_turn = not white_turn
 
 		display_board(stdscr)
-		#time.sleep(0.01)
+		time.sleep(0.01)
 		num_positions += recursion_test(stdscr, depth-1)
 
 		board = deepcopy(board2)
-		white_pieces = deepcopy(whites)
-		black_pieces = deepcopy(blacks)
 		white_turn = deepcopy(turn)
 
 	return num_positions
@@ -846,12 +860,12 @@ def move(stdscr):
 
 	white_turn = not white_turn
 
-	# move_count = recursion_test(stdscr, 2)
+	# move_count = recursion_test(stdscr, 3)
 	# x = w//2 - 3//2 - 3
 	# stdscr.addstr(21, x, str(move_count))
 	# stdscr.refresh()
 
-	# time.sleep(10)
+	# time.sleep(100)
 
 def main(stdscr):
 	global fd
