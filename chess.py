@@ -13,6 +13,13 @@ from copy import copy, deepcopy
 
 white_turn = True
 fen_starting_position = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+#fen_starting_position = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8"
+#for bug test after promotion and checks, recursion depths -> combinations
+#1 -> 44
+#2 -> 1486
+#3 -> 62379
+#4 -> 2103487
+#5 -> 89941194
 
 black_pieces = []
 white_pieces = []
