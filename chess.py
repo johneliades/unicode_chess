@@ -4,12 +4,14 @@ import os
 import math
 import time
 import subprocess
-import curses
 import numpy as np
+import shutil
+import keyboard
+from copy import copy, deepcopy
 global board
 global white_turn
 global fd
-from copy import copy, deepcopy
+from colorama import Fore, Back, Style
 
 white_turn = True
 fen_starting_position = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
@@ -393,16 +395,16 @@ class InvalidMoveException(Exception):
 	pass
 
 dead_piece_count = {
-	u'♟' : 0,
-	u'♜' : 0,
-	u'♞' : 0,
-	u'♝' : 0,
 	u'♛' : 0,
-	u'♙' : 0,
-	u'♖' : 0,
-	u'♘' : 0,
-	u'♗' : 0,
+	u'♜' : 0,
+	u'♝' : 0,
+	u'♞' : 0,
+	u'♟' : 0,
 	u'♕' : 0,
+	u'♖' : 0,
+	u'♗' : 0,
+	u'♘' : 0,
+	u'♙' : 0,
 }
 
 def calculate_fen():
@@ -494,161 +496,95 @@ def init_board():
 			board[row][column].y = column
 			column+=1
 
-def display_board(stdscr, start_x=None, start_y=None):
+def display_board(start_x=None, start_y=None):
 	global board
 
-	h, w = stdscr.getmaxyx()
+	w, h = shutil.get_terminal_size()
+	mid = w//2 - 34//2
 
-	stdscr.clear()
+	print("\033[2J\033[H", end="")
+
+	print("\n\n")
 
 	author = "𝓒𝓱𝓮𝓼𝓼 𝓫𝔂 𝓙𝓸𝓱𝓷 𝓔𝓵𝓲𝓪𝓭𝓮𝓼"
-	x = w//2 - len(author)//2
-	y = 2
-	try:
-		stdscr.addstr(y, x, author)
-	except curses.error:
-		pass
-	stdscr.refresh()
+
+	print(author.center(w))
 
 	total = dead_piece_count[u'♟'] + 3 *\
 		(dead_piece_count[u'♞'] + dead_piece_count[u'♝']) +\
 		5 * dead_piece_count[u'♜'] + 6 * dead_piece_count[u'♛']
 
-	total = "Points: " + str(total)
-	x = 4
-	y = 5
-	try:
-		stdscr.addstr(y, x, total)
-	except curses.error:
-		pass
+	total = (mid-10)*" " + "Points: " + str(total)
 
-	stdscr.refresh()
+	print(total, end =" ")
 
-	x = 4 + len(total) + 1
 	for pawn, count in dead_piece_count.items():
 		if pawn in [u'♟', u'♜', u'♞', u'♝', u'♛']:
-			y = 5
-
 			for i in range(count):
-				stdscr.addstr(y, x, pawn)
-				x += 2
-			
-	stdscr.refresh()
+				print(pawn, end="")
+
+	print()
 
 	row_num = 8
-
-	curses.init_pair(1, curses.COLOR_WHITE, 233)
-	curses.init_pair(2, curses.COLOR_WHITE, 240)
-	curses.init_pair(3, curses.COLOR_WHITE, 23)
-	curses.init_pair(4, curses.COLOR_WHITE, 45)
-	curses.init_pair(5, curses.COLOR_WHITE, curses.COLOR_RED)
-	
-	y = 7
 	
 	if(start_x!=None and start_y!=None):
 		moves = board[start_x][start_y].avail_moves()
 
-	white_cell = False
 	for i, row in enumerate(board):
-		x = w//2 - 34//2
-		cur_string = str(row_num)
-		try:
-			stdscr.addstr(y, x, cur_string)
-		except curses.error:
-			pass
-		stdscr.refresh()
-
-		x+=2
+		cur_string = mid*" " + str(row_num) + " "
 
 		for j, current in enumerate(row):
+			if (i + j) % 2 == 0:
+				bg_color = '\x1b[48;5;233m'  # gray
+			else:
+				bg_color = '\x1b[40m'  # black
+
 			if(i==start_x and j==start_y):
-				stdscr.attron(curses.color_pair(3))
-				cur_string =  " " + str(current) + "  " 
-				stdscr.addstr(y, x, cur_string)
-				stdscr.attroff(curses.color_pair(3))
+				cur_string += Back.LIGHTCYAN_EX + " " + str(current) + " " + Style.RESET_ALL
 			elif(start_x!=None and start_y!=None and (i, j) in moves):
 				try:
 					if(board[start_x][start_y].color!=board[i][j].color):
-						stdscr.attron(curses.color_pair(5))
-						cur_string =  " " + str(current) + "  " 
-						stdscr.addstr(y, x, cur_string)
-						stdscr.attroff(curses.color_pair(5))					
+						cur_string +=  Back.LIGHTRED_EX + " " + str(current) + " " + Style.RESET_ALL
 				except:
-					stdscr.attron(curses.color_pair(4))
-					cur_string =  " " + str(current) + "  " 
-					stdscr.addstr(y, x, cur_string)
-					stdscr.attroff(curses.color_pair(4))
-			elif(white_cell):
-				stdscr.attron(curses.color_pair(1))
-				cur_string =  " " + str(current) + "  " 
-				try:
-					stdscr.addstr(y, x, cur_string)
-				except curses.error:
-					pass
-				stdscr.attroff(curses.color_pair(1))
+					cur_string += Back.CYAN + " " + str(current) + " " + Style.RESET_ALL	
 			else:
-				stdscr.attron(curses.color_pair(2))
-				cur_string =  " " + str(current) + "  " 
-				try:
-					stdscr.addstr(y, x, cur_string)
-				except curses.error:
-					pass
-				stdscr.attroff(curses.color_pair(2))
-			
-			x+=len(cur_string)
+				cur_string += bg_color + " " + str(current) + " " + Style.RESET_ALL
 
-			stdscr.refresh()
-			white_cell = not white_cell
+		print(cur_string)
 
-		y+=1
-
-		white_cell = not white_cell
 		row_num -= 1
 
-	letters = ""
-	for letter in [u'\uff41', u'\uff42', u'\uff43', u'\uff44', u'\uff45', u'\uff46', u'\uff47', u'\uff48']:
+	letters = mid*" " + "   "
+	for letter in ["a", "b", "c", "d", "e", "f", "g", "h"]:
 		letters += letter + "  "
 
-	letters += "    "
+	letters += "   "
 
 	x = w//2 - len(letters)//2
-	try:
-		stdscr.addstr(y, x, letters)
-	except curses.error:
-		pass
+	print(letters)
 
 	total = dead_piece_count[u'♙'] + 3 *\
 		(dead_piece_count[u'♘'] + dead_piece_count[u'♗']) +\
 		5 * dead_piece_count[u'♖'] + 6 * dead_piece_count[u'♕']
 
-	total = "Points: " + str(total)
+	total = (mid-10)*" " + "Points: " + str(total)
 	x = 4
-	y += 2
 	
-	try:
-		stdscr.addstr(y, x, total)
-	except curses.error:
-		pass
-	stdscr.refresh()
+	print(total, end =" ")
 
 	x = 4 + len(total) + 1
 	for pawn, count in dead_piece_count.items():
 		if pawn in [u'♙', u'♖', u'♘', u'♗', u'♕']:
 			for i in range(count):
-				stdscr.addstr(y, x, pawn)
+				print(pawn, end="")
 				x += 2
 
-	y+=2
-	
+	print()
+
 	fen = calculate_fen()
 
 	x = w//2 - len("FEN: " + fen)//2 - 3
-	try:
-		stdscr.addstr(y, x, "FEN: " + fen)
-	except curses.error:
-		pass
-	
-	stdscr.refresh()
+	print("\nFEN: " + fen + "\n")
 
 	if(debug):
 		test = 23
@@ -665,7 +601,10 @@ def display_board(stdscr, start_x=None, start_y=None):
 
 			stdscr.refresh()
 
-def is_move_valid(stdscr, move):
+def is_move_valid(move):
+	if(len(move)==0):
+		return None
+
 	move = [char for char in move]
 
 	if(ord(move[0].upper()) not in range(ord('A'), ord('i'))):
@@ -698,7 +637,7 @@ def is_move_valid(stdscr, move):
 	elif(not white_turn and board[start_x][start_y].color!=Color.BLACK):
 		raise InvalidMoveException("Error: Black plays")
 
-	display_board(stdscr, start_x, start_y)
+	display_board(start_x, start_y)
 
 	if(len(move)<3):
 		return None
@@ -739,7 +678,7 @@ def is_move_valid(stdscr, move):
 
 	return [start_x, start_y, end_x, end_y]
 
-def recursion_test(stdscr, depth):
+def recursion_test(depth):
 	global board
 	global white_turn
 	global white_pieces
@@ -776,7 +715,7 @@ def recursion_test(stdscr, depth):
 				for move in piece.avail_moves():
 					moves.append((piece.x, piece.y, move[0], move[1]))
 	except:
-		display_board(stdscr)
+		display_board()
 		time.sleep(100)
 
 	for move in moves:
@@ -788,71 +727,41 @@ def recursion_test(stdscr, depth):
 		board[start_x][start_y].play_move(end_x, end_y)
 		white_turn = not white_turn
 
-		display_board(stdscr)
+		display_board()
 		time.sleep(0.01)
-		num_positions += recursion_test(stdscr, depth-1)
+		num_positions += recursion_test(depth-1)
 
 		board = deepcopy(board2)
 		white_turn = deepcopy(turn)
 
 	return num_positions
 
-def move(stdscr):
+def move():
 	global white_turn
 	global board
 	global white_pieces
 	global black_pieces
 
-	h, w = stdscr.getmaxyx()
+	w, h = shutil.get_terminal_size()
 
 	move = []
 	y=21
 	i=0
+
+	move = ""
 	while(len(move)!=4):
-		x = w//2 - len("***")//2 - 3
+		event = keyboard.read_event()
+		if event.event_type == keyboard.KEY_DOWN:
+			move += event.name
+
 		try:
-			stdscr.addstr(y, x, i * "*")
-		except curses.error:
-			pass
-		stdscr.refresh()
+			is_move_valid(move)
+		except Exception as e:
+			display_board()
+			print("\r" + str(e), end= "")
+			move = ""
 
-		key = stdscr.getkey()
-		if(key == 'KEY_BACKSPACE' or key == 'KEY_RESIZE'):
-			if(i>0):
-				i-=1
-				move = move[:len(move)-1]
-
-			display_board(stdscr)
-	
-			x = w//2 - 3//2 - 3
-			
-			try:
-				stdscr.addstr(y, 0, w * " ")
-			except curses.error:
-				pass
-
-			stdscr.refresh()
-
-			continue
-		elif(len(key)!=1):
-			continue
-
-		move.append(key)
-		try:
-			valid_move = is_move_valid(stdscr, move)
-			stdscr.addstr(y, 0, w * " ")
-			i+=1
-		except InvalidMoveException as e:
-			display_board(stdscr)
-
-			x = w//2 - 3//2 - 3
-			stdscr.addstr(y, 0, w * " ")
-			stdscr.addstr(y, 4, str(e))
-			stdscr.refresh()
-
-			i=0
-			move.clear()
-	stdscr.refresh()
+	valid_move = is_move_valid(move)
 
 	start_x = valid_move[0]
 	start_y = valid_move[1]
@@ -867,21 +776,17 @@ def move(stdscr):
 
 	white_turn = not white_turn
 
-	# move_count = recursion_test(stdscr, 3)
-	# x = w//2 - 3//2 - 3
-	# stdscr.addstr(21, x, str(move_count))
-	# stdscr.refresh()
-
+	# move_count = recursion_test(1)
+	# print(move_count)
 	# time.sleep(100)
 
-def main(stdscr):
+def main():
 	global fd
 
-	curses.curs_set(0)
+	init_board()
 
 	while True:
-		display_board(stdscr)
-		move(stdscr)
+		display_board()
+		move()
 
-init_board()
-curses.wrapper(main)
+main()
