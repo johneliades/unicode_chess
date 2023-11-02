@@ -584,7 +584,7 @@ def display_board(start_x=None, start_y=None):
 	fen = calculate_fen()
 
 	x = w//2 - len("FEN: " + fen)//2 - 3
-	print("\nFEN: " + fen + "\n")
+	print("\n" + (mid-15)*" " + "FEN: " + fen + "\n")
 
 	if(debug):
 		test = 23
