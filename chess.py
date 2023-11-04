@@ -337,7 +337,7 @@ class Board:
 		start_x = valid_move[0]
 		start_y = valid_move[1]
 		end_x = valid_move[2]
-		end_y = valid_move[3]
+		end_y = valid_move[3]	
 
 		if(isinstance(self.board[start_x][start_y], Pawn) and (end_x==0 or end_x==7)):
 			promotion = ""
@@ -551,7 +551,12 @@ class Pawn(Chess_piece):
 				if(self in self.black_pieces):
 					self.board_class.black_pieces.remove(self)
 
+		start_x = self.x
+
 		super().play_move((end_x, end_y))
+
+		if(end_x+2*self.direction == start_x):
+			self.board_class.en_passant_pawn=self
 		
 		if(promotion!=None):
 			if(promotion == "q"):
@@ -566,9 +571,6 @@ class Pawn(Chess_piece):
 			elif(promotion == "n"):
 				self.board_class.board[end_x][end_y] = Knight(
 					self.board_class.board[end_x][end_y].color, end_x, end_y, self.board_class)
-
-		if(end_x-2*self.direction == end_x):
-			self.board_class.en_passant_pawn=self
 
 		self.has_moved = True
 
