@@ -16,14 +16,15 @@ class Board:
 	def __init__(self, fen = None):	
 		self.board = np.zeros((8, 8), dtype = Chess_piece) 
 		self.white_turn = True
-		self.white_king = None
-		self.black_king = None
+		self.kings = [None, None] # kings[0] is black kings[1] is white
 		# self.is_check = False
 		# self.is_checkmate = False
 		# self.is_stalemate = False
 		# self.is_draw = False
 		# self.move_history = []
 		self.en_passant_pawn = None
+		self.half_move = 0
+		self.full_move = 1
 		self.dead_piece_count = {
 			u'♛' : 0,
 			u'♜' : 0,
@@ -112,6 +113,30 @@ class Board:
 
 		print("\n" + (mid-15)*" " + "FEN: " + fen + "\n")
 
+	def notation_to_coordinates(self, notation, is_rotated):
+		column_map = {'a': 0, 'b': 1, 'c': 2, 'd': 3, 'e': 4, 'f': 5, 'g': 6, 'h': 7}
+		column = column_map[notation[0]]
+		row = int(notation[1])-1
+		if is_rotated:
+			column = 7 - column
+			row = row
+		else:
+			column = column
+			row = 7 - row
+		
+		return row, column
+
+	def coordinates_to_notation(self, row, column, is_rotated):
+		column_map = {0: 'a', 1: 'b', 2: 'c', 3: 'd', 4: 'e', 5: 'f', 6: 'g', 7: 'h'}
+		if is_rotated:
+			row = 0 + row
+			column = column_map[7 - column]
+		else:
+			row = 7 - row
+			column = column_map[column]
+		
+		return f"{column}{row+1}"
+
 	def set_fen(self, fen):
 		row = 0
 		column = 0
@@ -150,10 +175,10 @@ class Board:
 					self.board[row][column] = Queen(Color.WHITE, row, column, self)
 				elif(char == "k"):
 					self.board[row][column] = King(Color.BLACK, row, column, self)
-					self.black_king = self.board[row][column]
+					self.kings[0] = self.board[row][column]
 				elif(char == "K"):
 					self.board[row][column] = King(Color.WHITE, row, column, self)
-					self.white_king = self.board[row][column]
+					self.kings[1] = self.board[row][column]
 				elif(char == "p"):
 					self.board[row][column] = Pawn(Color.BLACK, row, column, self)
 				elif(char == "P"):
@@ -162,14 +187,24 @@ class Board:
 				column+=1
 
 		if("Q" not in split_fen[2]):
-			self.white_king.can_castle_queenside = False
+			self.kings[1].can_castle_queenside = False
 		if("K" not in split_fen[2]):
-			self.white_king.can_castle_kingside = False
+			self.kings[1].can_castle_kingside = False
 		if("q" not in split_fen[2]):
-			self.black_king.can_castle_queenside = False
+			self.kings[0].can_castle_queenside = False
 		if("k" not in split_fen[2]):
-			self.black_king.can_castle_kingside = False
+			self.kings[0].can_castle_kingside = False
 		
+		if(split_fen[3]!="-"):
+			row, column = self.notation_to_coordinates(split_fen[3], False)
+			if(isinstance(self.board[row+1][column], Pawn)):
+				self.en_passant_pawn = self.board[row+1][column]
+			if(isinstance(self.board[row-1][column], Pawn)):
+				self.en_passant_pawn = self.board[row-1][column]
+
+		self.half_move = int(split_fen[4])
+		self.full_move = int(split_fen[5])
+
 	def get_fen(self):
 		fen = ""
 		empty_cells = 0
@@ -193,10 +228,42 @@ class Board:
 
 		fen = fen[:-1]
 
+		fen += " "
+
 		if(self.white_turn):
-			fen += " " + "w"
+			fen += "w"
 		else:
-			fen += " " + "b"
+			fen += "b"
+
+		fen += " "
+
+		if(self.kings[1].can_castle_kingside):
+			fen += "K"
+		if(self.kings[1].can_castle_queenside):
+			fen += "Q"
+		if(self.kings[0].can_castle_kingside):
+			fen += "k"
+		if(self.kings[0].can_castle_queenside):
+			fen += "q"
+		if(not self.kings[1].can_castle_kingside and
+			not self.kings[1].can_castle_queenside and
+			not self.kings[0].can_castle_kingside and
+			not self.kings[0].can_castle_queenside):
+
+			fen += "-"
+
+		fen += " "
+
+		if(self.en_passant_pawn!=None):
+			fen += self.coordinates_to_notation(
+				self.en_passant_pawn.x + self.en_passant_pawn.direction, 
+				self.en_passant_pawn.y, False) 
+		else:
+			fen += "-"
+
+		fen += " "
+
+		fen += str(self.half_move) + " " + str(self.full_move)
 
 		return fen
 
@@ -434,6 +501,13 @@ class Chess_piece:
 		if(isinstance(self.board_class.board[end_x][end_y], Chess_piece)):
 			self.board_class.dead_piece_count[str(self.board_class.board[end_x][end_y])] += 1
 
+		self.board_class.half_move += 1
+		if(isinstance(self.board_class.board[end_x][end_y], Chess_piece)):
+			self.board_class.half_move = 0
+
+		if(self.color == Color.BLACK):
+			self.board_class.full_move += 1
+
 		self.board_class.board[end_x][end_y] = self
 		self.board_class.board[self.x][self.y] = " "
 		self.x = end_x
@@ -446,13 +520,21 @@ class Pawn(Chess_piece):
 		self.x = x
 		self.y = y
 		self.board_class = board
-		self.has_moved = False
+
 		if(color == Color.WHITE):
 			self.fen_letter = "P"
 			self.direction = 1
+			if(self.x == 6):
+				self.has_moved = False
+			else:
+				self.has_moved = True
 		else:
 			self.fen_letter = "p"
 			self.direction = -1
+			if(self.x == 1):
+				self.has_moved = False
+			else:
+				self.has_moved = True
 
 	def attacked_squares(self):
 		squares = []
@@ -480,6 +562,7 @@ class Pawn(Chess_piece):
 
 		# Two steps
 		if(super().boundary_check((start_x-2*self.direction, start_y)) and
+			self.board_class.board[start_x-1*self.direction][start_y]==" " and
 			self.board_class.board[start_x-2*self.direction][start_y]==" " and
 			self.has_moved == False):
 			
@@ -563,6 +646,7 @@ class Pawn(Chess_piece):
 					self.board_class.board[end_x][end_y].color, end_x, end_y, self.board_class)
 
 		self.has_moved = True
+		self.board_class.half_move = 0
 
 		for move in self.board_class.board[end_x][end_y].avail_moves():
 			if(isinstance(self.board_class.board[move[0]][move[1]], King)):
@@ -621,8 +705,15 @@ class Rook(Chess_piece):
 		return moves;
 
 	def play_move(self, end):
+		start_y = self.y
 		end_x, end_y = end
 		super().play_move((end_x, end_y))
+
+		if(not self.has_moved and start_y == 0):
+			self.board_class.kings[self.color].can_castle_queenside = False			
+		if(not self.has_moved and start_y == 7):
+			self.board_class.kings[self.color].can_castle_kingside = False
+
 		self.has_moved = True
 
 		for move in self.avail_moves():
@@ -867,12 +958,14 @@ class King(Chess_piece):
 			self.board_class.board[self.x][self.y+3].play_move((self.x, end_y-1))
 		super().play_move((end_x, end_y))
 		self.has_moved = True
+		self.can_castle_kingside = False
+		self.can_castle_queenside = False
 
 class InvalidMoveException(Exception):
 	pass
 
 def main():
-	fen_test_position = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8"
+	fen_test_position = "rnbq1k1r/pp1Pbppp/2p5/8/8/8/PPP1NnPP/RNBQK2R w KQ - 1 8"
 	# rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8
 	#for bug test after promotion and checks, recursion depths -> combinations
 	#1 -> 44
