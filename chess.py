@@ -1,5 +1,4 @@
 # -*- encoding: utf-8 -*-
-import enum
 import os
 import math
 import time
@@ -9,33 +8,21 @@ import numpy as np
 import shutil
 import keyboard
 import traceback
+from enum import IntEnum
 from copy import copy, deepcopy
-global fd
 from colorama import Fore, Back, Style
-
-pieces = {
-	'P': '♙',
-	'N': '♘',
-	'B': '♗',
-	'R': '♖',
-	'Q': '♕',
-	'K': '♔',
-	'p': '♟',
-	'n': '♞',
-	'b': '♝',
-	'r': '♜',
-	'q': '♛',
-	'k': '♚',
-}
-
-debug = False
 
 class Board:
 	def __init__(self, fen = None):	
 		self.board = np.zeros((8, 8), dtype = Chess_piece) 
 		self.white_turn = True
-		self.black_pieces = []
-		self.white_pieces = []
+		self.white_king = None
+		self.black_king = None
+		# self.is_check = False
+		# self.is_checkmate = False
+		# self.is_stalemate = False
+		# self.is_draw = False
+		# self.move_history = []
 		self.en_passant_pawn = None
 		self.dead_piece_count = {
 			u'♛' : 0,
@@ -125,21 +112,6 @@ class Board:
 
 		print("\n" + (mid-15)*" " + "FEN: " + fen + "\n")
 
-		if(debug):
-			test = 23
-			for piece in black_pieces:
-				stdscr.addstr(test, 0, str(piece) + " " + str(piece.avail_moves()))
-				test+=1
-
-				stdscr.refresh()
-
-			test = 23
-			for piece in white_pieces:
-				stdscr.addstr(test, w//2, str(piece) + " " + str(piece.avail_moves()))
-				test+=1
-
-				stdscr.refresh()
-
 	def set_fen(self, fen):
 		row = 0
 		column = 0
@@ -150,7 +122,7 @@ class Board:
 			self.white_turn = True
 		else:
 			self.white_turn = False
-		
+
 		for char in position:
 			if(char.isdigit()):
 				for i in range(int(char)):
@@ -178,8 +150,10 @@ class Board:
 					self.board[row][column] = Queen(Color.WHITE, row, column, self)
 				elif(char == "k"):
 					self.board[row][column] = King(Color.BLACK, row, column, self)
+					self.black_king = self.board[row][column]
 				elif(char == "K"):
 					self.board[row][column] = King(Color.WHITE, row, column, self)
+					self.white_king = self.board[row][column]
 				elif(char == "p"):
 					self.board[row][column] = Pawn(Color.BLACK, row, column, self)
 				elif(char == "P"):
@@ -187,6 +161,15 @@ class Board:
 
 				column+=1
 
+		if("Q" not in split_fen[2]):
+			self.white_king.can_castle_queenside = False
+		if("K" not in split_fen[2]):
+			self.white_king.can_castle_kingside = False
+		if("q" not in split_fen[2]):
+			self.black_king.can_castle_queenside = False
+		if("k" not in split_fen[2]):
+			self.black_king.can_castle_kingside = False
+		
 	def get_fen(self):
 		fen = ""
 		empty_cells = 0
@@ -217,17 +200,29 @@ class Board:
 
 		return fen
 
+	def get_pieces(self, color):
+		pieces = []
+
+		for row in range(8):
+			for column in range(8):
+				if(isinstance(self.board[row][column], Chess_piece) and
+					self.board[row][column].color == color):
+
+					pieces.append(self.board[row][column])
+
+		return pieces
+
 	def legal_moves(self):
 		moves = []
 		if(self.white_turn):
-			for piece in self.white_pieces:
+			for piece in self.get_pieces(self.color):
 				for move in piece.avail_moves():
 					if(len(move)==2):
 						moves.append((piece.x, piece.y, move[0], move[1]))
 					else:
 						moves.append((piece.x, piece.y, move[0], move[1], move[2]))
 		else:
-			for piece in self.black_pieces:
+			for piece in self.get_pieces(self.color):
 				for move in piece.avail_moves():
 					if(len(move)==2):
 						moves.append((piece.x, piece.y, move[0], move[1]))
@@ -365,33 +360,18 @@ class Board:
 
 		moves = []
 
-		self.white_pieces = []
-		for row in self.board:
-			for column in row:
-				if(column!=" " and column.color==Color.WHITE):
-					self.white_pieces.append(column)
-
-		self.black_pieces = []
-		for row in self.board:
-			for column in row:
-				if(column!=" " and column.color==Color.BLACK):
-					self.black_pieces.append(column)
+		if(self.white_turn):
+			pieces = self.get_pieces(Color.WHITE)
+		else:
+			pieces = self.get_pieces(Color.BLACK)
 
 		try:
-			if(self.white_turn):
-				for piece in self.white_pieces:
-					for move in piece.avail_moves():
-						if(len(move)==2):
-							moves.append((piece.x, piece.y, move[0], move[1]))
-						else:
-							moves.append((piece.x, piece.y, move[0], move[1], move[2]))
-			else:
-				for piece in self.black_pieces:
-					for move in piece.avail_moves():
-						if(len(move)==2):
-							moves.append((piece.x, piece.y, move[0], move[1]))
-						else:
-							moves.append((piece.x, piece.y, move[0], move[1], move[2]))
+			for piece in pieces:
+				for move in piece.avail_moves():
+					if(len(move)==2):
+						moves.append((piece.x, piece.y, move[0], move[1]))
+					else:
+						moves.append((piece.x, piece.y, move[0], move[1], move[2]))
 
 		except Exception as e:
 			self.display()
@@ -415,29 +395,41 @@ class Board:
 
 		return num_positions
 
-class Color(enum.Enum):
-	WHITE = 0
-	BLACK = 1
+class Color(IntEnum):
+	BLACK = 0
+	WHITE = 1
 
 class Chess_piece:
 	def __str__(self):
+		pieces = {
+			'P': '♙',
+			'N': '♘',
+			'B': '♗',
+			'R': '♖',
+			'Q': '♕',
+			'K': '♔',
+			'p': '♟',
+			'n': '♞',
+			'b': '♝',
+			'r': '♜',
+			'q': '♛',
+			'k': '♚',
+		}
+
 		return pieces[self.fen_letter]
 
-	def limit_check(self, values):
+	def boundary_check(self, values):
 		return len([x for x in values if x>=0 and x<8]) == len(values)
 
 	def is_enemy_piece(self, test_x, test_y):
 		return self.board_class.board[test_x][test_y]!=" " and self.board_class.board[
 			self.x][self.y].color!=self.board_class.board[test_x][test_y].color 
 
+	def attacked_squares(self):
+		return self.avail_moves()
+
 	def play_move(self, end):
 		end_x, end_y = end
-
-		if(self.board_class.board[end_x][end_y] in self.board_class.white_pieces):
-			self.board_class.white_pieces.remove(self.board_class.board[end_x][end_y])
-
-		if(self.board_class.board[end_x][end_y] in self.board_class.black_pieces):
-			self.board_class.black_pieces.remove(self.board_class.board[end_x][end_y])
 
 		if(isinstance(self.board_class.board[end_x][end_y], Chess_piece)):
 			self.board_class.dead_piece_count[str(self.board_class.board[end_x][end_y])] += 1
@@ -458,11 +450,17 @@ class Pawn(Chess_piece):
 		if(color == Color.WHITE):
 			self.fen_letter = "P"
 			self.direction = 1
-			self.board_class.white_pieces.append(self)
 		else:
 			self.fen_letter = "p"
 			self.direction = -1
-			self.board_class.black_pieces.append(self)
+
+	def attacked_squares(self):
+		squares = []
+
+		squares.append((self.x-1*self.direction, self.y-1))
+		squares.append((self.x-1*self.direction, self.y+1))
+
+		return squares
 
 	def avail_moves(self):
 		moves = []
@@ -481,14 +479,14 @@ class Pawn(Chess_piece):
 				moves.append((start_x - 1*self.direction, start_y))
 
 		# Two steps
-		if(super().limit_check((start_x-2*self.direction, start_y)) and
+		if(super().boundary_check((start_x-2*self.direction, start_y)) and
 			self.board_class.board[start_x-2*self.direction][start_y]==" " and
 			self.has_moved == False):
 			
 			moves.append((start_x - 2*self.direction, start_y))
 
 		# Kill piece left
-		if(super().limit_check((start_x-1*self.direction, start_y-1)) and
+		if(super().boundary_check((start_x-1*self.direction, start_y-1)) and
 			self.board_class.board[start_x][start_y].is_enemy_piece(start_x-1*self.direction, start_y-1)):
 
 			if(start_x-1*self.direction==0 or start_x-1*self.direction==7):
@@ -500,7 +498,7 @@ class Pawn(Chess_piece):
 				moves.append((start_x-1*self.direction, start_y-1))
 
 		# Kill piece right
-		if(super().limit_check((start_x-1*self.direction, start_y+1)) and
+		if(super().boundary_check((start_x-1*self.direction, start_y+1)) and
 			self.board_class.board[start_x][start_y].is_enemy_piece(start_x-1*self.direction, start_y+1)):
 
 			if(start_x-1*self.direction==0 or start_x-1*self.direction==7):
@@ -512,14 +510,14 @@ class Pawn(Chess_piece):
 				moves.append((start_x-1*self.direction, start_y+1))
 
 		# En passant left
-		if(super().limit_check((start_x, start_y-1)) and
+		if(super().boundary_check((start_x, start_y-1)) and
 			self.board_class.board[start_x][start_y].is_enemy_piece(start_x, start_y-1) and
 			self.board_class.board[start_x][start_y-1]==self.board_class.en_passant_pawn):
 
 				moves.append((start_x-1*self.direction, start_y-1))
 
 		# En passant right
-		if(super().limit_check((start_x, start_y+1)) and
+		if(super().boundary_check((start_x, start_y+1)) and
 			self.board_class.board[start_x][start_y].is_enemy_piece(start_x, start_y+1) and			
 			self.board_class.board[start_x][start_y+1]==self.board_class.en_passant_pawn):
 
@@ -533,23 +531,15 @@ class Pawn(Chess_piece):
 		else:
 			end_x, end_y, promotion = end
 
-		if(super().limit_check((self.y-1,)) and
+		if(super().boundary_check((self.y-1,)) and
 			self.board_class.board[self.x][self.y-1]==self.board_class.en_passant_pawn and end_y==self.y-1):
 			
 			self.board_class.board[self.x][self.y-1]=" "
 	
-		elif(super().limit_check((self.y+1,)) and
+		elif(super().boundary_check((self.y+1,)) and
 			self.board_class.board[self.x][self.y+1]==self.board_class.en_passant_pawn and end_y==self.y+1):
 			
 			self.board_class.board[self.x][self.y+1]=" "
-
-		if(promotion!=None):
-			if(self.color == Color.WHITE):
-				if(self in self.board_class.white_pieces):
-					self.board_class.white_pieces.remove(self)
-			else:
-				if(self in self.black_pieces):
-					self.board_class.black_pieces.remove(self)
 
 		start_x = self.x
 
@@ -576,7 +566,7 @@ class Pawn(Chess_piece):
 
 		for move in self.board_class.board[end_x][end_y].avail_moves():
 			if(isinstance(self.board_class.board[move[0]][move[1]], King)):
-				self.board_class.board[move[0]][move[1]].in_check = True
+				self.board_class.is_check = True
 
 class Rook(Chess_piece):
 	def __init__(self, color, x, y, board):
@@ -586,10 +576,8 @@ class Rook(Chess_piece):
 		self.board_class = board
 		if(color == Color.WHITE):	
 			self.fen_letter = "R"
-			self.board_class.white_pieces.append(self)
 		else:
 			self.fen_letter = "r"
-			self.board_class.black_pieces.append(self)
 		self.has_moved = False
 
 	def avail_moves(self):
@@ -639,7 +627,7 @@ class Rook(Chess_piece):
 
 		for move in self.avail_moves():
 			if(isinstance(self.board_class.board[move[0]][move[1]], King)):
-				self.board_class.board[move[0]][move[1]].in_check = True
+				self.board_class.is_check = True
 
 class Bishop(Chess_piece):
 	def __init__(self, color, x, y, board):
@@ -649,10 +637,8 @@ class Bishop(Chess_piece):
 		self.board_class = board
 		if(color == Color.WHITE):
 			self.fen_letter = "B"
-			self.board_class.white_pieces.append(self)
 		else:
 			self.fen_letter = "b"
-			self.board_class.black_pieces.append(self)
 
 	def avail_moves(self):
 		moves = []
@@ -701,7 +687,7 @@ class Bishop(Chess_piece):
 
 		for move in self.avail_moves():
 			if(isinstance(self.board_class.board[move[0]][move[1]], King)):
-				self.board_class.board[move[0]][move[1]].in_check = True
+				self.board_class.is_check = True
 
 class Knight(Chess_piece):
 	def __init__(self, color, x, y, board):
@@ -711,10 +697,8 @@ class Knight(Chess_piece):
 		self.board_class = board
 		if(color == Color.WHITE):
 			self.fen_letter = "N"
-			self.board_class.white_pieces.append(self)
 		else:
 			self.fen_letter = "n"
-			self.board_class.black_pieces.append(self)
 
 	def avail_moves(self):
 		moves = [(self.x+2, self.y+1), 
@@ -731,7 +715,7 @@ class Knight(Chess_piece):
 			cur_y = cur_move[1]
 
 			# Remove out of range moves
-			if(not super().limit_check((cur_x, cur_y))):
+			if(not super().boundary_check((cur_x, cur_y))):
 				moves.remove(cur_move)
 				continue
 
@@ -752,7 +736,7 @@ class Knight(Chess_piece):
 
 		for move in self.avail_moves():
 			if(isinstance(self.board_class.board[move[0]][move[1]], King)):
-				self.board_class.board[move[0]][move[1]].in_check = True
+				self.board_class.is_check = True
 
 class Queen(Chess_piece):
 	def __init__(self, color, x, y, board):
@@ -762,10 +746,8 @@ class Queen(Chess_piece):
 		self.board_class = board
 		if(color == Color.WHITE):
 			self.fen_letter = "Q"
-			self.board_class.white_pieces.append(self)
 		else:
 			self.fen_letter = "q"
-			self.board_class.black_pieces.append(self)
 
 	def avail_moves(self):
 		moves = []
@@ -781,7 +763,7 @@ class Queen(Chess_piece):
 
 		for move in self.avail_moves():
 			if(isinstance(self.board_class.board[move[0]][move[1]], King)):
-				self.board_class.board[move[0]][move[1]].in_check = True
+				self.board_class.is_check = True
 
 class King(Chess_piece):
 	def __init__(self, color, x, y, board):
@@ -791,12 +773,24 @@ class King(Chess_piece):
 		self.board_class = board
 		if(color == Color.WHITE):
 			self.fen_letter = "K"
-			self.board_class.white_pieces.append(self)
 		else:
 			self.fen_letter = "k"
-			self.board_class.black_pieces.append(self)
 		self.has_moved = False
+		self.can_castle_kingside = True
+		self.can_castle_queenside = True  
 		self.in_check = False
+
+	def attacked_squares(self):
+		moves = [(self.x+1, self.y), 
+				(self.x+1, self.y+1), 
+				(self.x+1, self.y-1), 
+				(self.x, self.y+1), 
+				(self.x, self.y-1), 
+				(self.x-1, self.y),
+				(self.x-1, self.y+1), 
+				(self.x-1, self.y-1)]
+
+		return moves
 
 	def avail_moves(self):
 		moves = [(self.x+1, self.y), 
@@ -807,47 +801,63 @@ class King(Chess_piece):
 				(self.x-1, self.y),
 				(self.x-1, self.y+1), 
 				(self.x-1, self.y-1)]
-	
+
+		attacked_squares = set()
+		for piece in self.board_class.get_pieces(not self.color):
+			attacked_squares.update(set(piece.attacked_squares()))
+
 		for cur_move in reversed(moves):
 			cur_x = cur_move[0]
 			cur_y = cur_move[1]
 
 			# Remove out of range moves
-			if(not super().limit_check((cur_x, cur_y))):
+			if(not super().boundary_check((cur_x, cur_y))):
 				moves.remove(cur_move)
 				continue
 
 			# Don't remove moves to empty cell
 			if(self.board_class.board[cur_x][cur_y]==" "):
+				# Remove attacked squares
+				if((cur_x, cur_y) in attacked_squares):
+					moves.remove(cur_move)
+
 				continue
 
 			# Remove moves on your pieces
-			if self.board_class.board[cur_x][cur_y].color == self.color:
+			if(self.board_class.board[cur_x][cur_y].color == self.color):
 				moves.remove(cur_move)
 
-		if(super().limit_check((self.y-1, self.y-2, self.y-3, self.y-4)) and
+		if(super().boundary_check((self.y-1, self.y-2, self.y-3, self.y-4)) and
 			self.has_moved==False and 
 			self.board_class.board[self.x][self.y-1]==" " and
 			self.board_class.board[self.x][self.y-2]==" " and
 			self.board_class.board[self.x][self.y-3]==" " and
-			self.board_class.board[self.x][self.y-4]!=" " and
+			self.can_castle_queenside and
+			(self.x, self.y) not in attacked_squares and			
+			(self.x, self.y-1) not in attacked_squares and
+			(self.x, self.y-2) not in attacked_squares and
+			isinstance(self.board_class.board[self.x][self.y-4], Rook) and
 			self.board_class.board[self.x][self.y-4].color==self.color and
 			self.board_class.board[self.x][self.y-4].has_moved==False):
 	
 			moves.append((self.x, self.y-2))
 
-		if(super().limit_check((self.y+1, self.y+2, self.y+3)) and
+		if(super().boundary_check((self.y+1, self.y+2, self.y+3)) and
 			self.has_moved==False and 
 			self.board_class.board[self.x][self.y+1]==" " and
 			self.board_class.board[self.x][self.y+2]==" " and
-			self.board_class.board[self.x][self.y+3]!=" " and
+			self.can_castle_kingside and
+			(self.x, self.y) not in attacked_squares and			
+			(self.x, self.y+1) not in attacked_squares and
+			(self.x, self.y+2) not in attacked_squares and
+			isinstance(self.board_class.board[self.x][self.y+3], Rook) and
 			self.board_class.board[self.x][self.y+3].color==self.color and
 			self.board_class.board[self.x][self.y+3].has_moved==False):
 	
 			moves.append((self.x, self.y+2))
 
 		return moves
-	
+
 	def play_move(self, end):
 		end_x, end_y = end
 
@@ -862,9 +872,8 @@ class InvalidMoveException(Exception):
 	pass
 
 def main():
-	global fd
-
 	fen_test_position = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8"
+	# rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8
 	#for bug test after promotion and checks, recursion depths -> combinations
 	#1 -> 44
 	#2 -> 1486
