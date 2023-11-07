@@ -12,16 +12,29 @@ from enum import IntEnum
 from copy import copy, deepcopy
 from colorama import Fore, Back, Style
 
+class BoardState:
+	def __init__(self, board, white_turn, kings, 
+		is_check, en_passant_pawn, half_move, full_move, dead_piece_count):
+		
+		self.board = board
+		self.white_turn = white_turn
+		self.kings = kings
+		self.is_check = is_check
+		self.en_passant_pawn = en_passant_pawn
+		self.half_move = half_move
+		self.full_move = full_move
+		self.dead_piece_count = dead_piece_count
+
 class Board:
 	def __init__(self, fen = None):	
 		self.board = np.zeros((8, 8), dtype = Chess_piece) 
 		self.white_turn = True
 		self.kings = [None, None] # kings[0] is black kings[1] is white
-		# self.is_check = False
+		self.is_check = False
 		# self.is_checkmate = False
 		# self.is_stalemate = False
 		# self.is_draw = False
-		# self.move_history = []
+		self.previous_state = None
 		self.en_passant_pawn = None
 		self.half_move = 0
 		self.full_move = 1
@@ -42,6 +55,19 @@ class Board:
 			self.set_fen(fen)
 		else:
 			self.set_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+
+	def undo_last_move(self):
+		if self.previous_state is not None:
+			# Restore the previous board state.
+			self.board = self.previous_state.board
+			self.white_turn = self.previous_state.white_turn
+			self.kings = self.previous_state.kings
+			self.is_check = self.previous_state.is_check
+			self.en_passant_pawn = self.previous_state.en_passant_pawn
+			self.half_move = self.previous_state.half_move
+			self.full_move = self.previous_state.full_move
+			self.dead_piece_count = self.previous_state.dead_piece_count
+			self.previous_state = None  # Clear the previous state.
 
 	def display(self, start_x=None, start_y=None):
 		w, h = shutil.get_terminal_size()
@@ -314,9 +340,11 @@ class Board:
 		try:
 			int(move[1])
 		except:
+			self.display()
 			raise InvalidMoveException("Error: Give long algebraic notation")
 		
 		if(int(move[1]) not in range(1, 9)):
+			self.display()
 			raise InvalidMoveException("Error: Give long algebraic notation")
 
 		start_x = 8 - int(move[1])
@@ -324,14 +352,18 @@ class Board:
 		try:
 			self.board[start_x][start_y]
 		except:
+			self.display()
 			raise InvalidMoveException("Error: Give long algebraic notation")
 
 		if(self.board[start_x][start_y]==" "):
+			self.display()
 			raise InvalidMoveException("Error: No piece there")
 
 		if(self.white_turn and self.board[start_x][start_y].color!=Color.WHITE):
+			self.display()
 			raise InvalidMoveException("Error: White plays")
 		elif(not self.white_turn and self.board[start_x][start_y].color!=Color.BLACK):
+			self.display()
 			raise InvalidMoveException("Error: Black plays")
 
 		self.display(start_x, start_y)
@@ -340,6 +372,7 @@ class Board:
 			return None
 
 		if(ord(move[2].upper()) not in range(ord('A'), ord('i'))):
+			self.display()
 			raise InvalidMoveException("Error: Give long algebraic notation")
 		end_y = int(ord(move[2].upper()) - ord("A"))
 
@@ -349,9 +382,11 @@ class Board:
 		try:
 			int(move[3])
 		except:
+			self.display()
 			raise InvalidMoveException("Error: Give long algebraic notation")
 
 		if(int(move[3]) not in range(1, 9)):
+			self.display()
 			raise InvalidMoveException("Error: Give long algebraic notation")
 
 		end_x = 8 - int(move[3])
@@ -359,12 +394,15 @@ class Board:
 		try:
 			self.board[end_x][end_y]
 		except:
+			self.display()
 			raise InvalidMoveException("Error: Give long algebraic notation")
 
 		if(start_x == end_x and start_y == end_y):
+			self.display()
 			raise InvalidMoveException(" ")
 
 		if(self.board[end_x][end_y]!=" " and self.board[start_x][start_y].color == self.board[end_x][end_y].color):
+			self.display()
 			raise InvalidMoveException("Error: Can't move " + str(self.board[start_x][start_y]) + "  on " +\
 				str(self.board[end_x][end_y]) + " (Your piece)")
 
@@ -372,35 +410,11 @@ class Board:
 		moves = [(x[0], x[1]) for x in moves]
 
 		if((end_x, end_y) not in moves):
+			self.display()
 			raise InvalidMoveException("Error: Can't move " + str(self.board[start_x][start_y]) 
 				+ "  there")
 
-		return [start_x, start_y, end_x, end_y]
-
-	def move(self):
-		w, h = shutil.get_terminal_size()
-
-		move = ""
-		while(len(move)!=4):
-			event = keyboard.read_event()
-			if event.event_type == keyboard.KEY_DOWN:
-				move += event.name
-
-			try:
-				self.is_move_valid(move)
-			except Exception as e:
-				self.display()
-				# print("\r" + traceback.format_exc(), end= "")				
-				print("\r" + str(e), end= "")
-				move = ""
-
-		valid_move = self.is_move_valid(move)
-
-		start_x = valid_move[0]
-		start_y = valid_move[1]
-		end_x = valid_move[2]
-		end_y = valid_move[3]	
-
+		promotion = None
 		if(isinstance(self.board[start_x][start_y], Pawn) and (end_x==0 or end_x==7)):
 			promotion = ""
 			print("(q, r, b, n): ", end= "")
@@ -409,15 +423,43 @@ class Board:
 				event = keyboard.read_event()
 				if event.event_type == keyboard.KEY_DOWN:
 					promotion = event.name
+
+		return [start_x, start_y, end_x, end_y, promotion]
+
+	def push(self, valid_move):
+		w, h = shutil.get_terminal_size()
+
+		self.previous_state = BoardState(
+			deepcopy(self.board),
+			self.white_turn,
+			self.kings[:],
+			self.is_check,
+			self.en_passant_pawn,
+			self.half_move,
+			self.full_move,
+			deepcopy(self.dead_piece_count)
+		)
+
+		start_x = valid_move[0]
+		start_y = valid_move[1]
+		end_x = valid_move[2]
+		end_y = valid_move[3]
+		promotion = valid_move[4]
+
+		if(promotion):
 			self.board[start_x][start_y].play_move((end_x, end_y, promotion))
 		else:
 			self.board[start_x][start_y].play_move((end_x, end_y))
 
 		self.white_turn = not self.white_turn
 
-		# move_count = self.recursion_test(2)
-		# print(move_count)
-		# time.sleep(100)
+		color = self.board[end_x][end_y].color
+		pieces = self.get_pieces(not color)
+		for piece in pieces:
+			for move in piece.avail_moves():
+				king = self.kings[color]
+				if((king.x, king.y) == (move[0], move[1])):
+					self.undo_last_move()
 
 	def recursion_test(self, depth):
 		if(depth==0):
@@ -439,26 +481,40 @@ class Board:
 						moves.append((piece.x, piece.y, move[0], move[1]))
 					else:
 						moves.append((piece.x, piece.y, move[0], move[1], move[2]))
-
 		except Exception as e:
 			self.display()
 			print("\r" + traceback.format_exc(), end= "")
 			time.sleep(100)
 
 		for move in moves:
-			board = deepcopy(self)
+			backup = BoardState(
+				deepcopy(self.board),
+				self.white_turn,
+				self.kings[:],
+				self.is_check,
+				self.en_passant_pawn,
+				self.half_move,
+				self.full_move,
+				deepcopy(self.dead_piece_count)
+			)
 
-			if(len(move)==4):
-				start_x, start_y, end_x, end_y = move
-			else:
-				start_x, start_y, end_x, end_y, promotion = move
+			if(len(move)<5):
+				move = move + (None,)
+			self.push(move)
 
-			board.board[start_x][start_y].play_move(tuple(move[2:]))
-			board.white_turn = not board.white_turn
-
-			board.display()
+			self.display()
 			time.sleep(0.01)
-			num_positions += board.recursion_test(depth-1)
+			num_positions += self.recursion_test(depth-1)
+
+			self.board = backup.board
+			self.white_turn = backup.white_turn
+			self.kings = backup.kings
+			self.is_check = backup.is_check
+			self.en_passant_pawn = backup.en_passant_pawn
+			self.half_move = backup.half_move
+			self.full_move = backup.full_move
+			self.dead_piece_count = backup.dead_piece_count
+			self.previous_state = None  # Clear the previous state.
 
 		return num_positions
 
@@ -535,6 +591,11 @@ class Pawn(Chess_piece):
 				self.has_moved = False
 			else:
 				self.has_moved = True
+
+	def __deepcopy__(self, memo):
+		# Create a deep copy of the object.
+		new_obj = Pawn(self.color, self.x, self.y, self.board_class)
+		return new_obj
 
 	def attacked_squares(self):
 		squares = []
@@ -664,6 +725,11 @@ class Rook(Chess_piece):
 			self.fen_letter = "r"
 		self.has_moved = False
 
+	def __deepcopy__(self, memo):
+		# Create a deep copy of the object.
+		new_obj = Rook(self.color, self.x, self.y, self.board_class)
+		return new_obj
+
 	def avail_moves(self):
 		moves = []
 		for offset_x in reversed(range(0, self.x)):
@@ -731,6 +797,11 @@ class Bishop(Chess_piece):
 		else:
 			self.fen_letter = "b"
 
+	def __deepcopy__(self, memo):
+		# Create a deep copy of the object.
+		new_obj = Bishop(self.color, self.x, self.y, self.board_class)
+		return new_obj
+
 	def avail_moves(self):
 		moves = []
 		for offset_x, offset_y in zip(reversed(range(0, self.x)), reversed(range(0, self.y))):
@@ -791,6 +862,11 @@ class Knight(Chess_piece):
 		else:
 			self.fen_letter = "n"
 
+	def __deepcopy__(self, memo):
+		# Create a deep copy of the object.
+		new_obj = Knight(self.color, self.x, self.y, self.board_class)
+		return new_obj
+
 	def avail_moves(self):
 		moves = [(self.x+2, self.y+1), 
 				(self.x-2, self.y+1), 
@@ -840,6 +916,11 @@ class Queen(Chess_piece):
 		else:
 			self.fen_letter = "q"
 
+	def __deepcopy__(self, memo):
+		# Create a deep copy of the object.
+		new_obj = Queen(self.color, self.x, self.y, self.board_class)
+		return new_obj
+
 	def avail_moves(self):
 		moves = []
 		moves = Rook.avail_moves(self)
@@ -870,6 +951,11 @@ class King(Chess_piece):
 		self.can_castle_kingside = True
 		self.can_castle_queenside = True  
 		self.in_check = False
+
+	def __deepcopy__(self, memo):
+		# Create a deep copy of the object.
+		new_obj = King(self.color, self.x, self.y, self.board_class)
+		return new_obj
 
 	def attacked_squares(self):
 		moves = [(self.x+1, self.y), 
@@ -965,7 +1051,7 @@ class InvalidMoveException(Exception):
 	pass
 
 def main():
-	fen_test_position = "rnbq1k1r/pp1Pbppp/2p5/8/8/8/PPP1NnPP/RNBQK2R w KQ - 1 8"
+	fen_test_position = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8"
 	# rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8
 	#for bug test after promotion and checks, recursion depths -> combinations
 	#1 -> 44
@@ -978,6 +1064,24 @@ def main():
 
 	while True:
 		board.display()
-		board.move()
+
+		move = ""
+		while(len(move)!=4):
+			event = keyboard.read_event()
+			if event.event_type == keyboard.KEY_DOWN:
+				move += event.name
+
+			try:
+				valid_move = board.is_move_valid(move)
+			except Exception as e:
+				# print("\r" + traceback.format_exc(), end= "")				
+				print("\r" + str(e), end= "")
+				move = ""
+
+		board.push(valid_move)
+
+		# move_count = board.recursion_test(2)
+		# print(move_count)
+		# time.sleep(100)
 
 main()
