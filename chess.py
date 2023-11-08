@@ -17,10 +17,10 @@ class Board:
 		self.board = np.zeros((8, 8), dtype = Chess_piece) 
 		self.white_turn = True
 		self.kings = [None, None] # kings[0] is black kings[1] is white
-		self.is_checkmate = False
-		self.is_stalemate = False
-		self.is_draw = False
-		self.previous_state = None
+		self.checkmate = False
+		self.stalemate = False
+		self.draw = False
+		self.previous_fen = None
 		self.en_passant_pawn = None
 		self.half_move = 0
 		self.full_move = 1
@@ -47,9 +47,9 @@ class Board:
 		new_board = Board()
 		new_board.board = deepcopy(self.board)
 		new_board.white_turn = self.white_turn
-		new_board.is_checkmate = self.is_checkmate
-		new_board.is_stalemate = self.is_stalemate
-		new_board.is_draw = self.is_draw
+		new_board.checkmate = self.checkmate
+		new_board.stalemate = self.stalemate
+		new_board.draw = self.draw
 		new_board.en_passant_pawn = self.en_passant_pawn
 		new_board.half_move = self.half_move
 		new_board.full_move = self.full_move
@@ -226,15 +226,17 @@ class Board:
 		if("k" not in split_fen[2]):
 			self.kings[0].can_castle_kingside = False
 		
-		if(split_fen[3]!="-"):
+		if(len(split_fen)>=4 and split_fen[3]!="-"):
 			row, column = self.notation_to_coordinates(split_fen[3], False)
 			if(isinstance(self.board[row+1][column], Pawn)):
 				self.en_passant_pawn = self.board[row+1][column]
 			if(isinstance(self.board[row-1][column], Pawn)):
 				self.en_passant_pawn = self.board[row-1][column]
 
-		self.half_move = int(split_fen[4])
-		self.full_move = int(split_fen[5])
+		if(len(split_fen)>=5):
+			self.half_move = int(split_fen[4])
+		if(len(split_fen)==6):
+			self.full_move = int(split_fen[5])
 
 	def get_fen(self):
 		fen = ""
@@ -425,6 +427,8 @@ class Board:
 		return [start_x, start_y, end_x, end_y, promotion]
 
 	def push(self, valid_move):
+		self.previous_fen = self.get_fen()
+
 		w, h = shutil.get_terminal_size()
 
 		start_x = valid_move[0]
@@ -447,15 +451,15 @@ class Board:
 				for attack_move in piece.avail_moves():
 					king = self.kings[self.white_turn]
 					if((king.x, king.y) == (attack_move[0], attack_move[1])):
-						self.is_checkmate = True
+						self.checkmate = True
 						return
 
-			self.is_stalemate = True
+			self.stalemate = True
 			return
 
 		if(self.half_move>=50):
 			# 50 Move rule
-			self.is_draw = True
+			self.draw = True
 			return
 
 		current_fen = self.get_fen().split()
@@ -465,10 +469,14 @@ class Board:
 
 		if(self.fen_history[current_fen] >= 3):
 			# Threefold Rep
-			self.is_draw = True
+			self.draw = True
 			print("Threefold")
-			time.sleep(10)
 			return
+
+	def pop(self):
+		if(self.previous_fen):
+			self.set_fen(self.previous_fen)
+			self.previous_fen = None
 
 	def recursion_test(self, depth):
 		if(depth==0):
@@ -508,6 +516,18 @@ class Board:
 			num_positions += new_board.recursion_test(depth-1)
 
 		return num_positions
+
+	def is_checkmate(self):
+		return self.checkmate
+
+	def is_stalemate(self):
+		return self.stalemate
+
+	def is_game_over(self):
+		if(self.checkmate or self.stalemate or self.draw):
+			return True
+		else:
+			return False
 
 class Color(IntEnum):
 	BLACK = 0
@@ -1026,38 +1046,38 @@ class King(Chess_piece):
 class InvalidMoveException(Exception):
 	pass
 
-def main():
-	fen_test_position = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8"
-	# rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8
-	#for bug test after promotion and checks, recursion depths -> combinations
-	#1 -> 44
-	#2 -> 1486
-	#3 -> 62379
-	#4 -> 2103487
-	#5 -> 89941194
+# def main():
+# 	fen_test_position = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8"
+# 	# rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8
+# 	#for bug test after promotion and checks, recursion depths -> combinations
+# 	#1 -> 44
+# 	#2 -> 1486
+# 	#3 -> 62379
+# 	#4 -> 2103487
+# 	#5 -> 89941194
 
-	board = Board(fen_test_position)
+# 	board = Board(fen_test_position)
 
-	while True:
-		board.display()
+# 	while True:
+# 		board.display()
 
-		move = ""
-		while(len(move)!=4):
-			event = keyboard.read_event()
-			if event.event_type == keyboard.KEY_DOWN:
-				move += event.name
+# 		move = ""
+# 		while(len(move)!=4):
+# 			event = keyboard.read_event()
+# 			if event.event_type == keyboard.KEY_DOWN:
+# 				move += event.name
 
-			try:
-				valid_move = board.is_move_valid(move)
-			except Exception as e:
-				# print("\r" + traceback.format_exc(), end= "")				
-				print("\r" + str(e), end= "")
-				move = ""
+# 			try:
+# 				valid_move = board.is_move_valid(move)
+# 			except Exception as e:
+# 				# print("\r" + traceback.format_exc(), end= "")				
+# 				print("\r" + str(e), end= "")
+# 				move = ""
 
-		board.push(valid_move)
+# 		board.push(valid_move)
 
-		# move_count = board.recursion_test(2)
-		# print(move_count)
-		# time.sleep(100)
+# 		# move_count = board.recursion_test(2)
+# 		# print(move_count)
+# 		# time.sleep(100)
 
-main()
+# main()
