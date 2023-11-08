@@ -971,27 +971,19 @@ class King(Chess_piece):
 		end_x, end_y = end
 
 		if(end_y==self.y-2):
-			# Not doing this
-			# self.board_class.board[self.x][self.y-4].play_move((self.x, end_y+1))
-			# to avoid calling the chess_piece play_move twice and mess
-			# up the half_move full_move counters
+			self.board_class.board[self.x][self.y-4].play_move((self.x, end_y+1))
 
-			self.board_class.board[self.x][end_y+1] = self.board_class.board[self.x][self.y-4]
-			self.board_class.board[self.x][self.y-4] = " "
-			self.board_class.board[self.x][end_y+1].x = end_x
-			self.board_class.board[self.x][end_y+1].y = end_y
 		if(end_y==self.y+2):
-			# Not doing this
-			# self.board_class.board[self.x][self.y+3].play_move((self.x, end_y-1))
-			# to avoid calling the chess_piece play_move twice and mess
-			# up the half_move full_move counters
+			self.board_class.board[self.x][self.y+3].play_move((self.x, end_y-1))
 
-			self.board_class.board[self.x][end_y-1] = self.board_class.board[self.x][self.y+3]
-			self.board_class.board[self.x][self.y+3] = " "
-			self.board_class.board[self.x][end_y-1].x = end_x
-			self.board_class.board[self.x][end_y-1].y = end_y
-
-		super().play_move((end_x, end_y))
+		# Not calling super to avoid calling the chess_piece play_move twice 
+		# and mess up the half_move full_move counters
+		# super().play_move((end_x, end_y))
+ 
+		self.board_class.board[end_x][end_y] = self
+		self.board_class.board[self.x][self.y] = " "
+		self.x = end_x
+		self.y = end_y
 
 		self.has_moved = True
 		self.can_castle_kingside = False
@@ -1030,7 +1022,7 @@ def main():
 
 		board.push(valid_move)
 
-		# move_count = board.recursion_test(3)
+		# move_count = board.recursion_test(4)
 		# print(move_count)
 		# time.sleep(100)
 
