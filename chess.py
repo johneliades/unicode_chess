@@ -1049,6 +1049,11 @@ class King(Chess_piece):
 			self.board_class.board[self.x][end_y+1].x = end_x
 			self.board_class.board[self.x][end_y+1].y = end_y
 		if(end_y==self.y+2):
+			# Not doing this
+			# self.board_class.board[self.x][self.y+3].play_move((self.x, end_y-1))
+			# to avoid calling the chess_piece play_move twice and mess
+			# up the half_move full_move counters
+			
 			self.board_class.board[self.x][end_y-1] = self.board_class.board[self.x][self.y+3]
 			self.board_class.board[self.x][self.y+3] = " "
 			self.board_class.board[self.x][end_y-1].x = end_x
