@@ -428,6 +428,9 @@ class Board:
 
 	def push(self, valid_move):
 		self.previous_fen = self.get_fen()
+		
+		if(self.is_game_over()):
+			return
 
 		w, h = shutil.get_terminal_size()
 
@@ -470,7 +473,6 @@ class Board:
 		if(self.fen_history[current_fen] >= 3):
 			# Threefold Rep
 			self.draw = True
-			print("Threefold")
 			return
 
 	def pop(self):
@@ -566,6 +568,9 @@ class Chess_piece:
 		return self.avail_moves()
 
 	def legal_moves(self):
+		if(self.board_class.is_game_over()):
+			return []
+
 		moves = self.avail_moves()
 		for move in reversed(moves):
 			new_board = self.board_class.board_copy()
