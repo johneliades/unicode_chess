@@ -9,21 +9,8 @@ import shutil
 import keyboard
 import traceback
 from enum import IntEnum
-from copy import copy, deepcopy
+from copy import deepcopy
 from colorama import Fore, Back, Style
-
-class BoardState:
-	def __init__(self, board, white_turn, kings, 
-		is_check, en_passant_pawn, half_move, full_move, dead_piece_count):
-		
-		self.board = board
-		self.white_turn = white_turn
-		self.kings = kings
-		self.is_check = is_check
-		self.en_passant_pawn = en_passant_pawn
-		self.half_move = half_move
-		self.full_move = full_move
-		self.dead_piece_count = dead_piece_count
 
 class Board:
 	def __init__(self, fen = None):	
@@ -56,22 +43,36 @@ class Board:
 		else:
 			self.set_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 
-	def undo_last_move(self):
-		if self.previous_state is not None:
-			# Restore the previous board state.
-			self.board = self.previous_state.board
-			self.white_turn = self.previous_state.white_turn
-			self.kings = self.previous_state.kings
-			self.is_check = self.previous_state.is_check
-			self.en_passant_pawn = self.previous_state.en_passant_pawn
-			self.half_move = self.previous_state.half_move
-			self.full_move = self.previous_state.full_move
-			self.dead_piece_count = self.previous_state.dead_piece_count
-			self.previous_state = None  # Clear the previous state.
+	def board_copy(self):
+		new_board = Board()
+		new_board.board = deepcopy(self.board)
+		new_board.white_turn = self.white_turn
+		new_board.is_check = self.is_check
+		new_board.en_passant_pawn = self.en_passant_pawn
+		new_board.half_move = self.half_move
+		new_board.full_move = self.full_move
+		new_board.dead_piece_count = self.dead_piece_count
+
+		# Update references in copied pieces
+		for row in range(8):
+			for col in range(8):
+				piece = new_board.board[row][col]
+				if(isinstance(piece, Chess_piece)):
+					piece.update(new_board)
+
+				if(isinstance(piece, King)):
+					if(piece.color == Color.BLACK):
+						new_board.kings[0] = piece
+					else:
+						new_board.kings[1] = piece
+
+		return new_board
 
 	def display(self, start_x=None, start_y=None):
 		w, h = shutil.get_terminal_size()
 		mid = w//2 - 34//2
+
+		only_start = False
 
 		print("\033[2J\033[H", end="")
 
@@ -92,7 +93,7 @@ class Board:
 		row_num = 8
 		
 		if(start_x!=None and start_y!=None):
-			moves = self.board[start_x][start_y].avail_moves()
+			moves = self.board[start_x][start_y].legal_moves()
 			moves = [(x[0], x[1]) for x in moves]
 
 		for i, row in enumerate(self.board):
@@ -106,7 +107,7 @@ class Board:
 
 				if(i==start_x and j==start_y):
 					cur_string += Back.LIGHTCYAN_EX + " " + str(current) + " " + Style.RESET_ALL
-				elif(start_x!=None and start_y!=None and (i, j) in moves):
+				elif(not only_start and start_x!=None and start_y!=None and (i, j) in moves):
 					try:
 						if(self.board[start_x][start_y].color!=self.board[i][j].color):
 							cur_string +=  Back.LIGHTRED_EX + " " + str(current) + " " + Style.RESET_ALL
@@ -307,20 +308,13 @@ class Board:
 
 	def legal_moves(self):
 		moves = []
-		if(self.white_turn):
-			for piece in self.get_pieces(self.color):
-				for move in piece.avail_moves():
-					if(len(move)==2):
-						moves.append((piece.x, piece.y, move[0], move[1]))
-					else:
-						moves.append((piece.x, piece.y, move[0], move[1], move[2]))
-		else:
-			for piece in self.get_pieces(self.color):
-				for move in piece.avail_moves():
-					if(len(move)==2):
-						moves.append((piece.x, piece.y, move[0], move[1]))
-					else:
-						moves.append((piece.x, piece.y, move[0], move[1], move[2]))
+
+		for piece in self.get_pieces(self.color):
+			for move in piece.legal_moves():
+				if(len(move)==2):
+					moves.append((piece.x, piece.y, move[0], move[1]))
+				else:
+					moves.append((piece.x, piece.y, move[0], move[1], move[2]))
 
 		return moves
 
@@ -406,7 +400,7 @@ class Board:
 			raise InvalidMoveException("Error: Can't move " + str(self.board[start_x][start_y]) + "  on " +\
 				str(self.board[end_x][end_y]) + " (Your piece)")
 
-		moves = self.board[start_x][start_y].avail_moves()
+		moves = self.board[start_x][start_y].legal_moves()
 		moves = [(x[0], x[1]) for x in moves]
 
 		if((end_x, end_y) not in moves):
@@ -429,17 +423,6 @@ class Board:
 	def push(self, valid_move):
 		w, h = shutil.get_terminal_size()
 
-		self.previous_state = BoardState(
-			deepcopy(self.board),
-			self.white_turn,
-			self.kings[:],
-			self.is_check,
-			self.en_passant_pawn,
-			self.half_move,
-			self.full_move,
-			deepcopy(self.dead_piece_count)
-		)
-
 		start_x = valid_move[0]
 		start_y = valid_move[1]
 		end_x = valid_move[2]
@@ -452,14 +435,6 @@ class Board:
 			self.board[start_x][start_y].play_move((end_x, end_y))
 
 		self.white_turn = not self.white_turn
-
-		color = self.board[end_x][end_y].color
-		pieces = self.get_pieces(not color)
-		for piece in pieces:
-			for move in piece.avail_moves():
-				king = self.kings[color]
-				if((king.x, king.y) == (move[0], move[1])):
-					self.undo_last_move()
 
 	def recursion_test(self, depth):
 		if(depth==0):
@@ -476,7 +451,7 @@ class Board:
 
 		try:
 			for piece in pieces:
-				for move in piece.avail_moves():
+				for move in piece.legal_moves():
 					if(len(move)==2):
 						moves.append((piece.x, piece.y, move[0], move[1]))
 					else:
@@ -487,34 +462,16 @@ class Board:
 			time.sleep(100)
 
 		for move in moves:
-			backup = BoardState(
-				deepcopy(self.board),
-				self.white_turn,
-				self.kings[:],
-				self.is_check,
-				self.en_passant_pawn,
-				self.half_move,
-				self.full_move,
-				deepcopy(self.dead_piece_count)
-			)
+			new_board = self.board_copy()
 
 			if(len(move)<5):
 				move = move + (None,)
-			self.push(move)
+			new_board.push(move)
 
-			self.display()
-			time.sleep(0.01)
-			num_positions += self.recursion_test(depth-1)
+			# new_board.display()
+			# time.sleep(0.01)
 
-			self.board = backup.board
-			self.white_turn = backup.white_turn
-			self.kings = backup.kings
-			self.is_check = backup.is_check
-			self.en_passant_pawn = backup.en_passant_pawn
-			self.half_move = backup.half_move
-			self.full_move = backup.full_move
-			self.dead_piece_count = backup.dead_piece_count
-			self.previous_state = None  # Clear the previous state.
+			num_positions += new_board.recursion_test(depth-1)
 
 		return num_positions
 
@@ -541,6 +498,9 @@ class Chess_piece:
 
 		return pieces[self.fen_letter]
 
+	def update(self, board):
+		self.board_class = board
+
 	def boundary_check(self, values):
 		return len([x for x in values if x>=0 and x<8]) == len(values)
 
@@ -550,6 +510,28 @@ class Chess_piece:
 
 	def attacked_squares(self):
 		return self.avail_moves()
+
+	def legal_moves(self):
+		moves = self.avail_moves()
+		for move in reversed(moves):
+			new_board = self.board_class.board_copy()
+
+			if(len(move)==2):
+				end_x, end_y = move
+			else:
+				end_x, end_y, promotion = move
+
+			new_board.board[self.x][self.y].play_move((end_x, end_y))
+
+			pieces = new_board.get_pieces(not self.color)
+			for piece in pieces:
+				for attack_move in piece.avail_moves():
+					king = new_board.kings[self.color]
+					if((king.x, king.y) == (attack_move[0], attack_move[1])):
+						if move in moves:
+							moves.remove(move)
+
+		return moves
 
 	def play_move(self, end):
 		end_x, end_y = end
@@ -591,11 +573,6 @@ class Pawn(Chess_piece):
 				self.has_moved = False
 			else:
 				self.has_moved = True
-
-	def __deepcopy__(self, memo):
-		# Create a deep copy of the object.
-		new_obj = Pawn(self.color, self.x, self.y, self.board_class)
-		return new_obj
 
 	def attacked_squares(self):
 		squares = []
@@ -709,10 +686,6 @@ class Pawn(Chess_piece):
 		self.has_moved = True
 		self.board_class.half_move = 0
 
-		for move in self.board_class.board[end_x][end_y].avail_moves():
-			if(isinstance(self.board_class.board[move[0]][move[1]], King)):
-				self.board_class.is_check = True
-
 class Rook(Chess_piece):
 	def __init__(self, color, x, y, board):
 		self.color = color
@@ -724,11 +697,6 @@ class Rook(Chess_piece):
 		else:
 			self.fen_letter = "r"
 		self.has_moved = False
-
-	def __deepcopy__(self, memo):
-		# Create a deep copy of the object.
-		new_obj = Rook(self.color, self.x, self.y, self.board_class)
-		return new_obj
 
 	def avail_moves(self):
 		moves = []
@@ -782,10 +750,6 @@ class Rook(Chess_piece):
 
 		self.has_moved = True
 
-		for move in self.avail_moves():
-			if(isinstance(self.board_class.board[move[0]][move[1]], King)):
-				self.board_class.is_check = True
-
 class Bishop(Chess_piece):
 	def __init__(self, color, x, y, board):
 		self.color = color
@@ -796,11 +760,6 @@ class Bishop(Chess_piece):
 			self.fen_letter = "B"
 		else:
 			self.fen_letter = "b"
-
-	def __deepcopy__(self, memo):
-		# Create a deep copy of the object.
-		new_obj = Bishop(self.color, self.x, self.y, self.board_class)
-		return new_obj
 
 	def avail_moves(self):
 		moves = []
@@ -847,10 +806,6 @@ class Bishop(Chess_piece):
 
 		super().play_move((end_x, end_y))
 
-		for move in self.avail_moves():
-			if(isinstance(self.board_class.board[move[0]][move[1]], King)):
-				self.board_class.is_check = True
-
 class Knight(Chess_piece):
 	def __init__(self, color, x, y, board):
 		self.color = color
@@ -861,11 +816,6 @@ class Knight(Chess_piece):
 			self.fen_letter = "N"
 		else:
 			self.fen_letter = "n"
-
-	def __deepcopy__(self, memo):
-		# Create a deep copy of the object.
-		new_obj = Knight(self.color, self.x, self.y, self.board_class)
-		return new_obj
 
 	def avail_moves(self):
 		moves = [(self.x+2, self.y+1), 
@@ -901,10 +851,6 @@ class Knight(Chess_piece):
 
 		super().play_move((end_x, end_y))
 
-		for move in self.avail_moves():
-			if(isinstance(self.board_class.board[move[0]][move[1]], King)):
-				self.board_class.is_check = True
-
 class Queen(Chess_piece):
 	def __init__(self, color, x, y, board):
 		self.color = color
@@ -915,11 +861,6 @@ class Queen(Chess_piece):
 			self.fen_letter = "Q"
 		else:
 			self.fen_letter = "q"
-
-	def __deepcopy__(self, memo):
-		# Create a deep copy of the object.
-		new_obj = Queen(self.color, self.x, self.y, self.board_class)
-		return new_obj
 
 	def avail_moves(self):
 		moves = []
@@ -932,10 +873,6 @@ class Queen(Chess_piece):
 		end_x, end_y = end
 
 		super().play_move((end_x, end_y))
-
-		for move in self.avail_moves():
-			if(isinstance(self.board_class.board[move[0]][move[1]], King)):
-				self.board_class.is_check = True
 
 class King(Chess_piece):
 	def __init__(self, color, x, y, board):
@@ -951,11 +888,6 @@ class King(Chess_piece):
 		self.can_castle_kingside = True
 		self.can_castle_queenside = True  
 		self.in_check = False
-
-	def __deepcopy__(self, memo):
-		# Create a deep copy of the object.
-		new_obj = King(self.color, self.x, self.y, self.board_class)
-		return new_obj
 
 	def attacked_squares(self):
 		moves = [(self.x+1, self.y), 
@@ -1053,7 +985,7 @@ class King(Chess_piece):
 			# self.board_class.board[self.x][self.y+3].play_move((self.x, end_y-1))
 			# to avoid calling the chess_piece play_move twice and mess
 			# up the half_move full_move counters
-			
+
 			self.board_class.board[self.x][end_y-1] = self.board_class.board[self.x][self.y+3]
 			self.board_class.board[self.x][self.y+3] = " "
 			self.board_class.board[self.x][end_y-1].x = end_x
@@ -1098,7 +1030,7 @@ def main():
 
 		# board.push(valid_move)
 
-		move_count = board.recursion_test(2)
+		move_count = board.recursion_test(3)
 		print(move_count)
 		time.sleep(100)
 
