@@ -1013,25 +1013,25 @@ def main():
 	board = Board(fen_test_position)
 
 	while True:
-		# board.display()
+		board.display()
 
-		# move = ""
-		# while(len(move)!=4):
-		# 	event = keyboard.read_event()
-		# 	if event.event_type == keyboard.KEY_DOWN:
-		# 		move += event.name
+		move = ""
+		while(len(move)!=4):
+			event = keyboard.read_event()
+			if event.event_type == keyboard.KEY_DOWN:
+				move += event.name
 
-		# 	try:
-		# 		valid_move = board.is_move_valid(move)
-		# 	except Exception as e:
-		# 		# print("\r" + traceback.format_exc(), end= "")				
-		# 		print("\r" + str(e), end= "")
-		# 		move = ""
+			try:
+				valid_move = board.is_move_valid(move)
+			except Exception as e:
+				# print("\r" + traceback.format_exc(), end= "")				
+				print("\r" + str(e), end= "")
+				move = ""
 
-		# board.push(valid_move)
+		board.push(valid_move)
 
-		move_count = board.recursion_test(3)
-		print(move_count)
-		time.sleep(100)
+		# move_count = board.recursion_test(3)
+		# print(move_count)
+		# time.sleep(100)
 
 main()
