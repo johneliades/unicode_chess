@@ -1039,10 +1039,23 @@ class King(Chess_piece):
 		end_x, end_y = end
 
 		if(end_y==self.y-2):
-			self.board_class.board[self.x][self.y-4].play_move((self.x, end_y+1))
+			# Not doing this
+			# self.board_class.board[self.x][self.y-4].play_move((self.x, end_y+1))
+			# to avoid calling the chess_piece play_move twice and mess
+			# up the half_move full_move counters
+
+			self.board_class.board[self.x][end_y+1] = self.board_class.board[self.x][self.y-4]
+			self.board_class.board[self.x][self.y-4] = " "
+			self.board_class.board[self.x][end_y+1].x = end_x
+			self.board_class.board[self.x][end_y+1].y = end_y
 		if(end_y==self.y+2):
-			self.board_class.board[self.x][self.y+3].play_move((self.x, end_y-1))
+			self.board_class.board[self.x][end_y-1] = self.board_class.board[self.x][self.y+3]
+			self.board_class.board[self.x][self.y+3] = " "
+			self.board_class.board[self.x][end_y-1].x = end_x
+			self.board_class.board[self.x][end_y-1].y = end_y
+
 		super().play_move((end_x, end_y))
+
 		self.has_moved = True
 		self.can_castle_kingside = False
 		self.can_castle_queenside = False
@@ -1063,25 +1076,25 @@ def main():
 	board = Board(fen_test_position)
 
 	while True:
-		board.display()
+		# board.display()
 
-		move = ""
-		while(len(move)!=4):
-			event = keyboard.read_event()
-			if event.event_type == keyboard.KEY_DOWN:
-				move += event.name
+		# move = ""
+		# while(len(move)!=4):
+		# 	event = keyboard.read_event()
+		# 	if event.event_type == keyboard.KEY_DOWN:
+		# 		move += event.name
 
-			try:
-				valid_move = board.is_move_valid(move)
-			except Exception as e:
-				# print("\r" + traceback.format_exc(), end= "")				
-				print("\r" + str(e), end= "")
-				move = ""
+		# 	try:
+		# 		valid_move = board.is_move_valid(move)
+		# 	except Exception as e:
+		# 		# print("\r" + traceback.format_exc(), end= "")				
+		# 		print("\r" + str(e), end= "")
+		# 		move = ""
 
-		board.push(valid_move)
+		# board.push(valid_move)
 
-		# move_count = board.recursion_test(2)
-		# print(move_count)
-		# time.sleep(100)
+		move_count = board.recursion_test(2)
+		print(move_count)
+		time.sleep(100)
 
 main()
