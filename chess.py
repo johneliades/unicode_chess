@@ -9,7 +9,7 @@ import shutil
 import keyboard
 import traceback
 from enum import IntEnum
-from copy import deepcopy
+from copy import copy, deepcopy
 from colorama import Fore, Back, Style
 
 class Board:
@@ -51,7 +51,7 @@ class Board:
 		new_board.en_passant_pawn = self.en_passant_pawn
 		new_board.half_move = self.half_move
 		new_board.full_move = self.full_move
-		new_board.dead_piece_count = self.dead_piece_count
+		new_board.dead_piece_count = copy(self.dead_piece_count)
 
 		# Update references in copied pieces
 		for row in range(8):
@@ -948,7 +948,7 @@ class King(Chess_piece):
 			isinstance(self.board_class.board[self.x][self.y-4], Rook) and
 			self.board_class.board[self.x][self.y-4].color==self.color and
 			self.board_class.board[self.x][self.y-4].has_moved==False):
-	
+
 			moves.append((self.x, self.y-2))
 
 		if(super().boundary_check((self.y+1, self.y+2, self.y+3)) and
