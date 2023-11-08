@@ -9,7 +9,7 @@ import shutil
 import keyboard
 import traceback
 from enum import IntEnum
-from copy import copy, deepcopy
+from copy import deepcopy
 from colorama import Fore, Back, Style
 
 class Board:
@@ -17,14 +17,14 @@ class Board:
 		self.board = np.zeros((8, 8), dtype = Chess_piece) 
 		self.white_turn = True
 		self.kings = [None, None] # kings[0] is black kings[1] is white
-		self.is_check = False
-		# self.is_checkmate = False
-		# self.is_stalemate = False
-		# self.is_draw = False
+		self.is_checkmate = False
+		self.is_stalemate = False
+		self.is_draw = False
 		self.previous_state = None
 		self.en_passant_pawn = None
 		self.half_move = 0
 		self.full_move = 1
+		self.fen_history = {}
 		self.dead_piece_count = {
 			u'♛' : 0,
 			u'♜' : 0,
@@ -47,11 +47,14 @@ class Board:
 		new_board = Board()
 		new_board.board = deepcopy(self.board)
 		new_board.white_turn = self.white_turn
-		new_board.is_check = self.is_check
+		new_board.is_checkmate = self.is_checkmate
+		new_board.is_stalemate = self.is_stalemate
+		new_board.is_draw = self.is_draw
 		new_board.en_passant_pawn = self.en_passant_pawn
 		new_board.half_move = self.half_move
 		new_board.full_move = self.full_move
-		new_board.dead_piece_count = copy(self.dead_piece_count)
+		new_board.dead_piece_count = self.dead_piece_count.copy()
+		new_board.fen_history = self.fen_history.copy()
 
 		# Update references in copied pieces
 		for row in range(8):
@@ -108,10 +111,11 @@ class Board:
 				if(i==start_x and j==start_y):
 					cur_string += Back.LIGHTCYAN_EX + " " + str(current) + " " + Style.RESET_ALL
 				elif(not only_start and start_x!=None and start_y!=None and (i, j) in moves):
-					try:
+					if(isinstance(self.board[i][j], Chess_piece)):
 						if(self.board[start_x][start_y].color!=self.board[i][j].color):
-							cur_string +=  Back.LIGHTRED_EX + " " + str(current) + " " + Style.RESET_ALL
-					except:
+							cur_string += \
+								Back.LIGHTRED_EX + " " + str(current) + " " + Style.RESET_ALL
+					else:
 						cur_string += Back.CYAN + " " + str(current) + " " + Style.RESET_ALL	
 				else:
 					cur_string += bg_color + " " + str(current) + " " + Style.RESET_ALL
@@ -309,7 +313,7 @@ class Board:
 	def legal_moves(self):
 		moves = []
 
-		for piece in self.get_pieces(self.color):
+		for piece in self.get_pieces(self.white_turn):
 			for move in piece.legal_moves():
 				if(len(move)==2):
 					moves.append((piece.x, piece.y, move[0], move[1]))
@@ -436,6 +440,36 @@ class Board:
 
 		self.white_turn = not self.white_turn
 
+		all_moves = self.legal_moves()
+		if(len(all_moves)==0):
+			pieces = self.get_pieces(not self.white_turn)
+			for piece in pieces:
+				for attack_move in piece.avail_moves():
+					king = self.kings[self.white_turn]
+					if((king.x, king.y) == (attack_move[0], attack_move[1])):
+						self.is_checkmate = True
+						return
+
+			self.is_stalemate = True
+			return
+
+		if(self.half_move>=50):
+			# 50 Move rule
+			self.is_draw = True
+			return
+
+		current_fen = self.get_fen().split()
+		# Ignore full move half move
+		current_fen = " ".join(current_fen[:4])
+		self.fen_history[current_fen] = self.fen_history.get(current_fen, 0) + 1
+
+		if(self.fen_history[current_fen] >= 3):
+			# Threefold Rep
+			self.is_draw = True
+			print("Threefold")
+			time.sleep(10)
+			return
+
 	def recursion_test(self, depth):
 		if(depth==0):
 			return 1
@@ -468,8 +502,8 @@ class Board:
 				move = move + (None,)
 			new_board.push(move)
 
-			# new_board.display()
-			# time.sleep(0.01)
+			new_board.display()
+			time.sleep(0.01)
 
 			num_positions += new_board.recursion_test(depth-1)
 
@@ -1022,7 +1056,7 @@ def main():
 
 		board.push(valid_move)
 
-		# move_count = board.recursion_test(4)
+		# move_count = board.recursion_test(2)
 		# print(move_count)
 		# time.sleep(100)
 
