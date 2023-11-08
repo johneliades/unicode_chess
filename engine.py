@@ -53,10 +53,10 @@ def minimax(board, depth, maximizing_player):
 			if(len(move)<5):
 				move = move + (None,)
 
-			board.push(move)
-			evalu = minimax(board, depth - 1, False)
+			new_board = board.board_copy()
+			new_board.push(move)
+			evalu = minimax(new_board, depth - 1, False)
 			max_eval = max(max_eval, evalu)
-			board.pop()
 		return max_eval
 	else:
 		min_eval = float("inf")
@@ -64,10 +64,10 @@ def minimax(board, depth, maximizing_player):
 			if(len(move)<5):
 				move = move + (None,)
 
-			board.push(move)
-			evalu = minimax(board, depth - 1, True)
+			new_board = board.board_copy()
+			new_board.push(move)
+			evalu = minimax(new_board, depth - 1, True)
 			min_eval = min(min_eval, evalu)
-			board.pop()
 		return min_eval
 
 board = Board()
