@@ -8,6 +8,7 @@ import numpy as np
 import shutil
 import keyboard
 import traceback
+import time
 from enum import IntEnum
 from copy import deepcopy
 from colorama import Fore, Back, Style
@@ -312,7 +313,7 @@ class Board:
 
 		return pieces
 
-	def legal_moves(self):
+	def all_legal_moves(self):
 		moves = []
 
 		for piece in self.get_pieces(self.white_turn):
@@ -447,7 +448,7 @@ class Board:
 
 		self.white_turn = not self.white_turn
 
-		all_moves = self.legal_moves()
+		all_moves = self.all_legal_moves()
 		if(len(all_moves)==0):
 			pieces = self.get_pieces(not self.white_turn)
 			for piece in pieces:
@@ -512,8 +513,8 @@ class Board:
 				move = move + (None,)
 			new_board.push(move)
 
-			new_board.display()
-			time.sleep(0.01)
+			# new_board.display()
+			# time.sleep(0.01)
 
 			num_positions += new_board.recursion_test(depth-1)
 
@@ -584,7 +585,10 @@ class Chess_piece:
 
 			pieces = new_board.get_pieces(not self.color)
 			for piece in pieces:
-				for attack_move in piece.avail_moves():
+				if(isinstance(piece, King)):
+					continue
+
+				for attack_move in piece.attacked_squares():
 					king = new_board.kings[self.color]
 					if((king.x, king.y) == (attack_move[0], attack_move[1])):
 						if move in moves:
@@ -1051,38 +1055,37 @@ class King(Chess_piece):
 class InvalidMoveException(Exception):
 	pass
 
-# def main():
-# 	fen_test_position = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8"
-# 	# rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8
-# 	#for bug test after promotion and checks, recursion depths -> combinations
-# 	#1 -> 44
-# 	#2 -> 1486
-# 	#3 -> 62379
-# 	#4 -> 2103487
-# 	#5 -> 89941194
+def main():
+	# rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8
+	#for bug test after promotion and checks, recursion depths -> combinations
+	#1 -> 44
+	#2 -> 1486
+	#3 -> 62379
+	#4 -> 2103487
+	#5 -> 89941194
 
-# 	board = Board(fen_test_position)
+	board = Board("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8")
 
-# 	while True:
-# 		board.display()
+	while True:
+		board.display()
 
-# 		move = ""
-# 		while(len(move)!=4):
-# 			event = keyboard.read_event()
-# 			if event.event_type == keyboard.KEY_DOWN:
-# 				move += event.name
+		move = ""
+		while(len(move)!=4):
+			event = keyboard.read_event()
+			if event.event_type == keyboard.KEY_DOWN:
+				move += event.name
 
-# 			try:
-# 				valid_move = board.is_move_valid(move)
-# 			except Exception as e:
-# 				# print("\r" + traceback.format_exc(), end= "")				
-# 				print("\r" + str(e), end= "")
-# 				move = ""
+			try:
+				valid_move = board.is_move_valid(move)
+			except Exception as e:
+				# print("\r" + traceback.format_exc(), end= "")				
+				print("\r" + str(e), end= "")
+				move = ""
 
-# 		board.push(valid_move)
+		board.push(valid_move)
 
-# 		# move_count = board.recursion_test(2)
-# 		# print(move_count)
-# 		# time.sleep(100)
+	# start_time = time.time()
+	# move_count = board.recursion_test(3)
+	# print(str(move_count) + "/62379, ", round(time.time() - start_time, 1), "s")
 
-# main()
+main()
