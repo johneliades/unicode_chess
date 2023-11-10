@@ -465,7 +465,12 @@ class Board:
 
 		pieces = self.get_player_pieces(self.white_turn)
 
-		moves = [move for piece in pieces for move in piece.legal_moves()]
+		try:
+			moves = [move for piece in pieces for move in piece.legal_moves()]
+		except Exception as e:
+			self.display()
+			print("\r" + traceback.format_exc(), end= "")
+			time.sleep(100)
 
 		for move in moves:
 			new_board = self.board_copy()
@@ -531,11 +536,76 @@ class Chess_piece:
 		return self.board.squares[test_x][test_y]!=" " and self.board.squares[
 			self.x][self.y].color!=self.board.squares[test_x][test_y].color 
 
+	def is_pinned(self):
+		piece_position = (self.x, self.y)
+
+		my_king = self.board.kings[self.color]
+		king_position = (my_king.x, my_king.y)
+
+		# Get the direction from the piece to the king
+		delta_file = king_position[0] - piece_position[0]
+		delta_rank = king_position[1] - piece_position[1]
+
+		# Check for diagonal pins (bishop or queen)
+		if abs(delta_file) == abs(delta_rank):
+			return self.is_pinned_diagonally(piece_position, king_position)
+
+		# Check for orthogonal pins (rook or queen)
+		if delta_file == 0 or delta_rank == 0:
+			return self.is_pinned_orthogonally(piece_position, king_position)
+
+		# No pin in other directions
+		return False
+
+	def is_pinned_diagonally(self, piece_position, king_position):
+		delta_file = 1 if king_position[0] > piece_position[0] else -1
+		delta_rank = 1 if king_position[1] > piece_position[1] else -1
+
+		current_square = piece_position
+		while current_square != king_position:
+			current_square = (current_square[0] + delta_file, current_square[1] + delta_rank)
+
+			# Check for a piece in the line
+			if(isinstance(self.board.squares[current_square[0]][current_square[1]], Chess_piece)):
+				# If the piece is a queen or bishop, it's a pin
+				if(isinstance(self.board.squares[current_square[0]][current_square[1]], Queen) or
+					isinstance(self.board.squares[current_square[0]][current_square[1]], Bishop)):
+					return True
+				else:
+					break  # There's a piece blocking the line
+
+		return False
+
+	def is_pinned_orthogonally(self, piece_position, king_position):
+		if king_position[0] == piece_position[0]:  # Same file
+			delta_file = 0
+			delta_rank = 1 if king_position[1] > piece_position[1] else -1
+		else:  # Same rank
+			delta_file = 1 if king_position[0] > piece_position[0] else -1
+			delta_rank = 0
+
+		current_square = piece_position
+		while current_square != king_position:
+			current_square = (current_square[0] + delta_file, current_square[1] + delta_rank)
+
+			# Check for a piece in the line
+			if(isinstance(self.board.squares[current_square[0]][current_square[1]], Chess_piece)):
+				# If the piece is a queen or rook, it's a pin
+				if(isinstance(self.board.squares[current_square[0]][current_square[1]], Queen) or
+					isinstance(self.board.squares[current_square[0]][current_square[1]], Rook)):
+					return True
+				else:
+					break  # There's a piece blocking the line
+
+		return False
+
 	def legal_moves(self):
 		if(self.board.is_game_over()):
 			return []
 
 		moves = self.avail_moves()
+
+		# if(self.is_pinned()):
 		for move in reversed(moves):
 			new_board = self.board.board_copy()
 
@@ -743,67 +813,23 @@ class Rook(Chess_piece):
 
 	def avail_moves(self):
 		values = [
-			# ↑
 			zip(reversed(range(0, self.x)), [self.y] * self.x),
-			# ↓ 
 			zip(range(self.x+1, 8), [self.y] * (8-self.x-1)),
-			# ←
 			zip([self.x] * (self.y), reversed(range(0, self.y))),
-			# → 
 			zip([self.x] * (8-self.y-1), range(self.y+1, 8))
 		]
-
-		vertical_pieces = []
-		first_half = []
-		for direction in values[:2]:
+		
+		moves = []
+		for direction in values:
 			for x, y in direction:
 				if(self.board.squares[x][y] == " "):
-					first_half.append(Move(self.x, self.y, x, y))
+					moves.append(Move(self.x, self.y, x, y))
 				elif(self.board.squares[x][y].color != self.color):
-					first_half.append(Move(self.x, self.y, x, y))
-					vertical_pieces.append(self.board.squares[x][y])
+					moves.append(Move(self.x, self.y, x, y))
 					break
 				else:
-					vertical_pieces.append(self.board.squares[x][y])
 					break
-
-		unique_classes = set()
-		for piece in vertical_pieces:
-			unique_classes.add(type(piece))	
-
-		# Only this diagonal available cause of discovered check
-		if((King in unique_classes and Queen in unique_classes or
-			King in unique_classes and Rook in unique_classes) and
-			vertical_pieces[0].color!=vertical_pieces[1].color):
-
-			return first_half
-
-		vertical_pieces = []
-		second_half = []
-		for direction in values[2:]:
-			for x, y in direction:
-				if(self.board.squares[x][y] == " "):
-					second_half.append(Move(self.x, self.y, x, y))
-				elif(self.board.squares[x][y].color != self.color):
-					second_half.append(Move(self.x, self.y, x, y))
-					vertical_pieces.append(self.board.squares[x][y])
-					break
-				else:
-					vertical_pieces.append(self.board.squares[x][y])
-					break
-
-		unique_classes = set()
-		for piece in vertical_pieces:
-			unique_classes.add(type(piece))	
-
-		# Only this diagonal available cause of discovered check
-		if((King in unique_classes and Queen in unique_classes or
-			King in unique_classes and Rook in unique_classes) and
-			vertical_pieces[0].color!=vertical_pieces[1].color):
-
-			return second_half
-
-		return first_half + second_half
+		return moves
 
 	def play_move(self, move):
 		source_y = move.source_y
@@ -859,67 +885,22 @@ class Bishop(Chess_piece):
 
 	def avail_moves(self):
 		values = [
-			# ↖
 			zip(reversed(range(0, self.x)), reversed(range(0, self.y))),
-			# ↘
 			zip(range(self.x+1, 8), range(self.y+1, 8)),
-			# ↙ 
 			zip(range(self.x+1, 8), reversed(range(0, self.y))),
-			# ↗
 			zip(reversed(range(0, self.x)), range(self.y+1, 8))
 		]
-
-		diagonal_pieces = []
-		first_half = []
-		for direction in values[:2]:
+		moves = []
+		for direction in values:
 			for x, y in direction:
 				if(self.board.squares[x][y] == " "):
-					first_half.append(Move(self.x, self.y, x, y))
+					moves.append(Move(self.x, self.y, x, y))
 				elif(self.board.squares[x][y].color != self.color):
-					first_half.append(Move(self.x, self.y, x, y))
-					diagonal_pieces.append(self.board.squares[x][y])
+					moves.append(Move(self.x, self.y, x, y))
 					break	
 				else:
-					diagonal_pieces.append(self.board.squares[x][y])
 					break
-
-		unique_classes = set()
-		for piece in diagonal_pieces:
-			unique_classes.add(type(piece))	
-
-		# Only this diagonal available cause of discovered check
-		if((King in unique_classes and Queen in unique_classes or
-			King in unique_classes and Bishop in unique_classes) and
-			diagonal_pieces[0].color!=diagonal_pieces[1].color):
-
-			return first_half
-
-		diagonal_pieces = []
-		second_half = []
-		for direction in values[2:]:
-			for x, y in direction:
-				if(self.board.squares[x][y] == " "):
-					second_half.append(Move(self.x, self.y, x, y))
-				elif(self.board.squares[x][y].color != self.color):
-					second_half.append(Move(self.x, self.y, x, y))
-					diagonal_pieces.append(self.board.squares[x][y])
-					break	
-				else:
-					diagonal_pieces.append(self.board.squares[x][y])
-					break
-
-		unique_classes = set()
-		for piece in diagonal_pieces:
-			unique_classes.add(type(piece))	
-
-		# Only this diagonal available cause of discovered check
-		if((King in unique_classes and Queen in unique_classes or
-			King in unique_classes and Bishop in unique_classes) and
-			diagonal_pieces[0].color!=diagonal_pieces[1].color):
-
-			return second_half
-
-		return first_half + second_half
+		return moves
 
 	def play_move(self, move):
 		super().play_move(move)
@@ -1143,7 +1124,7 @@ def main():
 	# 	board.push(move)
 
 	start_time = time.time()
-	move_count = board.recursion_test(2)
-	print(str(move_count) + "/1486, ", round(time.time() - start_time, 1), "s")
+	move_count = board.recursion_test(3)
+	print(str(move_count) + "/62379, ", round(time.time() - start_time, 1), "s")
 
 main()
