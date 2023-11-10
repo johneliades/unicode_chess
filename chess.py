@@ -470,9 +470,10 @@ class Board:
 		for move in moves:
 			new_board = self.board_copy()
 
+			# new_board.display(move.source_x, move.source_y)
+			# time.sleep(0.01)
 			new_board.push(move)
-
-			# new_board.display()
+			# new_board.display(move.dest_x, move.dest_y)
 			# time.sleep(0.01)
 
 			num_positions += new_board.recursion_test(depth-1)
@@ -716,26 +717,93 @@ class Rook(Chess_piece):
 	def attacked_squares(self):
 		return [(move.dest_x, move.dest_y) for move in self.avail_moves()]
 
+		# values = [
+		# 	# ↑
+		# 	zip(reversed(range(0, self.x)), [self.y] * self.x),
+		# 	# ↓ 
+		# 	zip(range(self.x+1, 8), [self.y] * (8-self.x-1)),
+		# 	# ←
+		# 	zip([self.x] * (self.y), reversed(range(0, self.y))),
+		# 	# → 
+		# 	zip([self.x] * (8-self.y-1), range(self.y+1, 8))
+		# ]
+
+		# squares = []
+		# for direction in values:
+		# 	for x, y in direction:
+		# 		if(self.board.squares[x][y] == " "):
+		# 			squares.append((self.x, self.y, x, y))
+		# 		elif(self.board.squares[x][y].color != self.color):
+		# 			squares.append((self.x, self.y, x, y))
+		# 			break
+		# 		else:
+		# 			break
+
+		# return squares
+
 	def avail_moves(self):
 		values = [
+			# ↑
 			zip(reversed(range(0, self.x)), [self.y] * self.x),
+			# ↓ 
 			zip(range(self.x+1, 8), [self.y] * (8-self.x-1)),
+			# ←
 			zip([self.x] * (self.y), reversed(range(0, self.y))),
+			# → 
 			zip([self.x] * (8-self.y-1), range(self.y+1, 8))
 		]
 
-		moves = []
-		for direction in values:
+		vertical_pieces = []
+		first_half = []
+		for direction in values[:2]:
 			for x, y in direction:
 				if(self.board.squares[x][y] == " "):
-					moves.append(Move(self.x, self.y, x, y))
+					first_half.append(Move(self.x, self.y, x, y))
 				elif(self.board.squares[x][y].color != self.color):
-					moves.append(Move(self.x, self.y, x, y))
-					break	
+					first_half.append(Move(self.x, self.y, x, y))
+					vertical_pieces.append(self.board.squares[x][y])
+					break
 				else:
+					vertical_pieces.append(self.board.squares[x][y])
 					break
 
-		return moves
+		unique_classes = set()
+		for piece in vertical_pieces:
+			unique_classes.add(type(piece))	
+
+		# Only this diagonal available cause of discovered check
+		if((King in unique_classes and Queen in unique_classes or
+			King in unique_classes and Rook in unique_classes) and
+			vertical_pieces[0].color!=vertical_pieces[1].color):
+
+			return first_half
+
+		vertical_pieces = []
+		second_half = []
+		for direction in values[2:]:
+			for x, y in direction:
+				if(self.board.squares[x][y] == " "):
+					second_half.append(Move(self.x, self.y, x, y))
+				elif(self.board.squares[x][y].color != self.color):
+					second_half.append(Move(self.x, self.y, x, y))
+					vertical_pieces.append(self.board.squares[x][y])
+					break
+				else:
+					vertical_pieces.append(self.board.squares[x][y])
+					break
+
+		unique_classes = set()
+		for piece in vertical_pieces:
+			unique_classes.add(type(piece))	
+
+		# Only this diagonal available cause of discovered check
+		if((King in unique_classes and Queen in unique_classes or
+			King in unique_classes and Rook in unique_classes) and
+			vertical_pieces[0].color!=vertical_pieces[1].color):
+
+			return second_half
+
+		return first_half + second_half
 
 	def play_move(self, move):
 		source_y = move.source_y
@@ -763,26 +831,95 @@ class Bishop(Chess_piece):
 	def attacked_squares(self):
 		return [(move.dest_x, move.dest_y) for move in self.avail_moves()]
 
+		# values = [
+		# 	# ↖
+		# 	zip(reversed(range(0, self.x)), reversed(range(0, self.y))),
+		# 	# ↘
+		# 	zip(range(self.x+1, 8), range(self.y+1, 8)),
+		# 	# ↙ 
+		# 	zip(range(self.x+1, 8), reversed(range(0, self.y))),
+		# 	# ↗
+		# 	zip(reversed(range(0, self.x)), range(self.y+1, 8))
+		# ]
+
+		# attacked_squares = []
+		# for direction in values:
+		# 	for x, y in direction:
+		# 		if(self.board.squares[x][y] == " " or
+		# 			isinstance(self.board.squares[x][y], King)):
+
+		# 			attacked_squares.append((self.x, self.y, x, y))
+		# 		elif(self.board.squares[x][y].color != self.color):
+		# 			attacked_squares.append((self.x, self.y, x, y))
+		# 			break	
+		# 		else:
+		# 			break
+
+		# return attacked_squares
+
 	def avail_moves(self):
 		values = [
+			# ↖
 			zip(reversed(range(0, self.x)), reversed(range(0, self.y))),
+			# ↘
 			zip(range(self.x+1, 8), range(self.y+1, 8)),
+			# ↙ 
 			zip(range(self.x+1, 8), reversed(range(0, self.y))),
+			# ↗
 			zip(reversed(range(0, self.x)), range(self.y+1, 8))
 		]
 
-		moves = []
-		for direction in values:
+		diagonal_pieces = []
+		first_half = []
+		for direction in values[:2]:
 			for x, y in direction:
 				if(self.board.squares[x][y] == " "):
-					moves.append(Move(self.x, self.y, x, y))
+					first_half.append(Move(self.x, self.y, x, y))
 				elif(self.board.squares[x][y].color != self.color):
-					moves.append(Move(self.x, self.y, x, y))
+					first_half.append(Move(self.x, self.y, x, y))
+					diagonal_pieces.append(self.board.squares[x][y])
 					break	
 				else:
+					diagonal_pieces.append(self.board.squares[x][y])
 					break
 
-		return moves
+		unique_classes = set()
+		for piece in diagonal_pieces:
+			unique_classes.add(type(piece))	
+
+		# Only this diagonal available cause of discovered check
+		if((King in unique_classes and Queen in unique_classes or
+			King in unique_classes and Bishop in unique_classes) and
+			diagonal_pieces[0].color!=diagonal_pieces[1].color):
+
+			return first_half
+
+		diagonal_pieces = []
+		second_half = []
+		for direction in values[2:]:
+			for x, y in direction:
+				if(self.board.squares[x][y] == " "):
+					second_half.append(Move(self.x, self.y, x, y))
+				elif(self.board.squares[x][y].color != self.color):
+					second_half.append(Move(self.x, self.y, x, y))
+					diagonal_pieces.append(self.board.squares[x][y])
+					break	
+				else:
+					diagonal_pieces.append(self.board.squares[x][y])
+					break
+
+		unique_classes = set()
+		for piece in diagonal_pieces:
+			unique_classes.add(type(piece))	
+
+		# Only this diagonal available cause of discovered check
+		if((King in unique_classes and Queen in unique_classes or
+			King in unique_classes and Bishop in unique_classes) and
+			diagonal_pieces[0].color!=diagonal_pieces[1].color):
+
+			return second_half
+
+		return first_half + second_half
 
 	def play_move(self, move):
 		super().play_move(move)
@@ -1006,7 +1143,7 @@ def main():
 	# 	board.push(move)
 
 	start_time = time.time()
-	move_count = board.recursion_test(3)
-	print(str(move_count) + "/62379, ", round(time.time() - start_time, 1), "s")
+	move_count = board.recursion_test(2)
+	print(str(move_count) + "/1486, ", round(time.time() - start_time, 1), "s")
 
 main()
