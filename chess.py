@@ -1,50 +1,80 @@
 # -*- encoding: utf-8 -*-
+"""
+Unicode Chess — A terminal-based chess game with Unicode piece rendering.
+
+A fully functional chess library with move generation, move validation,
+and support for FEN notation.  Can be used standalone or as a backend for
+a UCI engine (see engine.py).
+"""
+
 import os
 import math
 import time
 import sys
 import subprocess
-import numpy as np
 import shutil
-import keyboard
 import traceback
-import time
 from enum import IntEnum
 from copy import deepcopy
-from colorama import Fore, Back, Style
+from typing import List, Optional, Tuple, Dict
+
+import numpy as np
+import keyboard
+from colorama import Fore, Back, Style, init
+
+# Initialize colorama for cross-platform colour support
+init()
+
 
 class Board:
-	def __init__(self, fen = None):	
-		self.squares = np.zeros((8, 8), dtype = Chess_piece) 
+	"""Represents a chess board and manages game state.
+
+	Attributes:
+		squares: 8×8 numpy array holding piece objects or " " for empty.
+		white_turn: True when it is White's move.
+		kings: [black_king, white_king] references.
+		checkmate / stalemate / draw: game-over flags.
+	"""
+
+	def __init__(self, fen: Optional[str] = None):
+		self.squares = np.zeros((8, 8), dtype=Chess_piece)
 		self.white_turn = True
-		self.kings = [None, None] # kings[0] is black kings[1] is white
+		self.kings: List[Optional["King"]] = [None, None]  # [black, white]
 		self.checkmate = False
 		self.stalemate = False
 		self.draw = False
-		self.previous_fen = None
-		self.en_passant_pawn = None
+		self.previous_fen: Optional[str] = None
+		self.en_passant_pawn: Optional["Pawn"] = None
 		self.half_move = 0
 		self.full_move = 1
-		self.fen_history = {}
+		self.fen_history: Dict[str, int] = {}
+		self.move_history: List[str] = []  # stack of FEN strings for multi-undo
 		self.dead_piece_count = {
-			u'♛' : 0,
-			u'♜' : 0,
-			u'♝' : 0,
-			u'♞' : 0,
-			u'♟' : 0,
-			u'♕' : 0,
-			u'♖' : 0,
-			u'♗' : 0,
-			u'♘' : 0,
-			u'♙' : 0,
+			u'♛': 0,
+			u'♜': 0,
+			u'♝': 0,
+			u'♞': 0,
+			u'♟': 0,
+			u'♚': 0,
+			u'♕': 0,
+			u'♖': 0,
+			u'♗': 0,
+			u'♘': 0,
+			u'♙': 0,
+			u'♔': 0,
 		}
 
-		if(fen != None):
+		if fen is not None:
 			self.set_fen(fen)
 		else:
 			self.set_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 
-	def board_copy(self):
+	# -----------------------------------------------------------------
+	# Board copying
+	# -----------------------------------------------------------------
+
+	def board_copy(self) -> "Board":
+		"""Return a deep copy of this board suitable for look-ahead."""
 		new_board = Board()
 		new_board.squares = deepcopy(self.squares)
 		new_board.white_turn = self.white_turn
@@ -56,96 +86,139 @@ class Board:
 		new_board.full_move = self.full_move
 		new_board.dead_piece_count = self.dead_piece_count.copy()
 		new_board.fen_history = self.fen_history.copy()
+		new_board.move_history = self.move_history.copy()
 
 		# Update references in copied pieces
 		for row in range(8):
 			for col in range(8):
 				piece = new_board.squares[row][col]
-				if(isinstance(piece, Chess_piece)):
+				if isinstance(piece, Chess_piece):
 					piece.update(new_board)
-
-				if(isinstance(piece, King)):
-					if(piece.color == Color.BLACK):
+				if isinstance(piece, King):
+					if piece.color == Color.BLACK:
 						new_board.kings[0] = piece
 					else:
 						new_board.kings[1] = piece
 
 		return new_board
 
-	def display(self, source_x=None, source_y=None):
-		w, h = shutil.get_terminal_size()
-		mid = w//2 - 34//2
+	# -----------------------------------------------------------------
+	# Display
+	# -----------------------------------------------------------------
 
-		only_start = False
+	def display(self, source_x: Optional[int] = None, source_y: Optional[int] = None):
+		"""Render the board to the terminal.
+
+		When *source_x* / *source_y* are given the selected piece is
+		highlighted and its legal destinations are shown.
+		"""
+		w, h = shutil.get_terminal_size()
+		mid = w // 2 - 34 // 2
 
 		print("\033[2J\033[H", end="")
-
-		print("\n\n")
+		print("\n")
 
 		author = "𝓒𝓱𝓮𝓼𝓼 𝓫𝔂 𝓙𝓸𝓱𝓷 𝓔𝓵𝓲𝓪𝓭𝓮𝓼"
-
 		print(author.center(w))
-
-		print((mid-5)*" ", end = "")
-		for pawn, count in self.dead_piece_count.items():
-			if pawn in [u'♙', u'♖', u'♘', u'♗', u'♕']:
-				for i in range(count):
-					print(pawn, end="")
-
 		print()
 
-		row_num = 8
-		
-		if(source_x!=None and source_y!=None):
-			moves = self.squares[source_x][source_y].legal_moves()
-			moves = [(move.dest_x, move.dest_y) for move in moves]
+		# --- Captured white pieces (shown above board) ---
+		captured_line = ""
+		for pawn, count in self.dead_piece_count.items():
+			if pawn in [u'♙', u'♖', u'♘', u'♗', u'♕']:
+				captured_line += pawn * count
+		if captured_line:
+			print((mid - 5) * " " + captured_line)
+		else:
+			print()
 
+		# --- Board rows ---
+		only_start = False
+		moves: List[Tuple[int, int]] = []
+
+		if source_x is not None and source_y is not None:
+			moves = [
+				(m.dest_x, m.dest_y)
+				for m in self.squares[source_x][source_y].legal_moves()
+			]
+
+		row_num = 8
 		for i, row in enumerate(self.squares):
-			cur_string = mid*" " + str(row_num) + " "
+			cur_string = mid * " " + Fore.CYAN + str(row_num) + Style.RESET_ALL + " "
 
 			for j, current in enumerate(row):
 				if (i + j) % 2 == 0:
-					bg_color = '\x1b[48;5;233m'  # gray
+					bg_color = '\x1b[48;5;233m'  # dark grey
 				else:
 					bg_color = '\x1b[40m'  # black
 
-				if(i==source_x and j==source_y):
+				if i == source_x and j == source_y:
 					cur_string += Back.LIGHTCYAN_EX + " " + str(current) + " " + Style.RESET_ALL
-				elif(not only_start and source_x!=None and source_y!=None and (i, j) in moves):
-					if(isinstance(self.squares[i][j], Chess_piece)):
-						if(self.squares[source_x][source_y].color!=self.squares[i][j].color):
-							cur_string += \
+				elif (
+					not only_start
+					and source_x is not None
+					and source_y is not None
+					and (i, j) in moves
+				):
+					if isinstance(self.squares[i][j], Chess_piece):
+						if self.squares[source_x][source_y].color != self.squares[i][j].color:
+							cur_string += (
 								Back.LIGHTRED_EX + " " + str(current) + " " + Style.RESET_ALL
+							)
 					else:
-						cur_string += Back.CYAN + " " + str(current) + " " + Style.RESET_ALL	
+						cur_string += Back.CYAN + " " + str(current) + " " + Style.RESET_ALL
 				else:
 					cur_string += bg_color + " " + str(current) + " " + Style.RESET_ALL
 
 			print(cur_string)
-
 			row_num -= 1
 
-		letters = mid*" " + "   "
-		for letter in ["a", "b", "c", "d", "e", "f", "g", "h"]:
-			letters += letter + "  "
-
-		letters += "   "
-
+		# --- Column letters ---
+		letters = mid * " " + "  " + Fore.CYAN
+		for letter in "abcdefgh":
+			letters += " " + letter + " "
+		letters += Style.RESET_ALL
 		print(letters)
-		
-		print((mid-5)*" ", end = "")
+
+		# --- Captured black pieces (shown below board) ---
+		captured_line = ""
 		for pawn, count in self.dead_piece_count.items():
 			if pawn in [u'♟', u'♜', u'♞', u'♝', u'♛']:
-				for i in range(count):
-					print(pawn, end="")
+				captured_line += pawn * count
+		if captured_line:
+			print((mid - 5) * " " + captured_line)
+		else:
+			print()
 
-		print()
-
+		# --- Status line ---
 		fen = self.get_fen()
+		turn_label = (Fore.WHITE + "White" if self.white_turn else Fore.LIGHTBLACK_EX + "Black") + Style.RESET_ALL
+		status = f"  Move {self.full_move}  ·  {turn_label} to play"
 
-		print("\n" + (mid-15)*" " + "FEN: " + fen + "\n")
+		# Check indicator
+		if not self.is_game_over():
+			current_king = self.kings[int(self.white_turn)]
+			if current_king is not None:
+				for piece in self.get_player_pieces(not self.white_turn):
+					for sq in piece.attacked_squares():
+						if (current_king.x, current_king.y) == (sq[0], sq[1]):
+							status += Fore.RED + "  ⚠ CHECK" + Style.RESET_ALL
+							break
+					else:
+						continue
+					break
 
-	def notation_to_coordinates(self, notation, is_rotated):
+		print(Fore.LIGHTBLACK_EX + status.center(w) + Style.RESET_ALL + "\n")
+
+		fen_line = f"FEN: {fen}"
+		print(Fore.LIGHTBLACK_EX + fen_line.center(w) + Style.RESET_ALL + "\n")
+
+	# -----------------------------------------------------------------
+	# Notation helpers
+	# -----------------------------------------------------------------
+
+	def notation_to_coordinates(self, notation: str, is_rotated: bool) -> Tuple[int, int]:
+		"""Convert algebraic notation (e.g. 'e4') to (row, col) indices."""
 		column_map = {'a': 0, 'b': 1, 'c': 2, 'd': 3, 'e': 4, 'f': 5, 'g': 6, 'h': 7}
 		column = column_map[notation[0]]
 		row = int(notation[1])-1
@@ -158,7 +231,8 @@ class Board:
 		
 		return row, column
 
-	def coordinates_to_notation(self, row, column, is_rotated):
+	def coordinates_to_notation(self, row: int, column: int, is_rotated: bool) -> str:
+		"""Convert (row, col) indices to algebraic notation."""
 		column_map = {0: 'a', 1: 'b', 2: 'c', 3: 'd', 4: 'e', 5: 'f', 6: 'g', 7: 'h'}
 		if is_rotated:
 			row = 0 + row
@@ -169,7 +243,12 @@ class Board:
 		
 		return f"{column}{row+1}"
 
-	def set_fen(self, fen):
+	# -----------------------------------------------------------------
+	# FEN
+	# -----------------------------------------------------------------
+
+	def set_fen(self, fen: str):
+		"""Set up the board from a FEN string."""
 		row = 0
 		column = 0
 
@@ -239,7 +318,8 @@ class Board:
 		if(len(split_fen)==6):
 			self.full_move = int(split_fen[5])
 
-	def get_fen(self):
+	def get_fen(self) -> str:
+		"""Return the current position as a FEN string."""
 		fen = ""
 		empty_cells = 0
 
@@ -301,7 +381,12 @@ class Board:
 
 		return fen
 
-	def get_player_pieces(self, color):
+	# -----------------------------------------------------------------
+	# Piece queries
+	# -----------------------------------------------------------------
+
+	def get_player_pieces(self, color) -> List["Chess_piece"]:
+		"""Return all pieces belonging to *color*."""
 		pieces = []
 
 		for row in range(8):
@@ -313,10 +398,21 @@ class Board:
 
 		return pieces
 
-	def all_legal_moves(self):
+	def all_legal_moves(self) -> List["Move"]:
+		"""Return every legal move for the side to move."""
 		return [move for piece in self.get_player_pieces(self.white_turn) for move in piece.legal_moves()]
 
+	# -----------------------------------------------------------------
+	# Move validation (interactive)
+	# -----------------------------------------------------------------
+
 	def is_move_valid(self, move):
+		"""Validate a long-algebraic move string typed by the user.
+
+		Returns a list ``[source_x, source_y, dest_x, dest_y, promotion]``
+		on success, *None* for incomplete input, or raises
+		:class:`InvalidMoveException`.
+		"""
 		if(len(move)==0):
 			return None
 
@@ -412,10 +508,12 @@ class Board:
 
 		return [source_x, source_y, dest_x, dest_y, promotion]
 
-	def push(self, move):
-		self.previous_fen = self.get_fen()
-		
-		if(self.is_game_over()):
+	def push(self, move: "Move"):
+		"""Apply *move* to the board, advancing the game state."""
+		self.move_history.append(self.get_fen())
+		self.previous_fen = self.move_history[-1]
+
+		if self.is_game_over():
 			return
 
 		w, h = shutil.get_terminal_size()
@@ -425,39 +523,49 @@ class Board:
 		self.white_turn = not self.white_turn
 
 		all_moves = self.all_legal_moves()
-		if(len(all_moves)==0):
+		if len(all_moves) == 0:
 			pieces = self.get_player_pieces(not self.white_turn)
 			for piece in pieces:
 				for attack_move in piece.avail_moves():
 					king = self.kings[self.white_turn]
-					if((king.x, king.y) == (attack_move.dest_x, attack_move.dest_y)):
+					if (king.x, king.y) == (attack_move.dest_x, attack_move.dest_y):
 						self.checkmate = True
 						return
 
 			self.stalemate = True
 			return
 
-		if(self.half_move>=50):
-			# 50 Move rule
+		if self.half_move >= 50:
+			# 50-move rule
 			self.draw = True
 			return
 
 		current_fen = self.get_fen().split()
-		# Ignore full move half move
+		# Ignore full-move / half-move clocks for repetition
 		current_fen = " ".join(current_fen[:4])
 		self.fen_history[current_fen] = self.fen_history.get(current_fen, 0) + 1
 
-		if(self.fen_history[current_fen] >= 3):
-			# Threefold Rep
+		if self.fen_history[current_fen] >= 3:
+			# Three-fold repetition
 			self.draw = True
 			return
 
 	def pop(self):
-		if(self.previous_fen):
-			self.set_fen(self.previous_fen)
-			self.previous_fen = None
+		"""Undo the last move (supports multiple undos via history)."""
+		if self.move_history:
+			prev = self.move_history.pop()
+			self.checkmate = False
+			self.stalemate = False
+			self.draw = False
+			self.set_fen(prev)
+			self.previous_fen = self.move_history[-1] if self.move_history else None
 
-	def recursion_test(self, depth):
+	# -----------------------------------------------------------------
+	# Perft (testing)
+	# -----------------------------------------------------------------
+
+	def recursion_test(self, depth: int) -> int:
+		"""Count leaf nodes at *depth* (perft). Used for move-gen testing."""
 		if(depth==0):
 			return 1
 
@@ -485,32 +593,60 @@ class Board:
 
 		return num_positions
 
-	def is_checkmate(self):
+	# -----------------------------------------------------------------
+	# Game-over queries
+	# -----------------------------------------------------------------
+
+	def is_checkmate(self) -> bool:
 		return self.checkmate
 
-	def is_stalemate(self):
+	def is_stalemate(self) -> bool:
 		return self.stalemate
 
-	def is_game_over(self):
-		if(self.checkmate or self.stalemate or self.draw):
-			return True
-		else:
-			return False
+	def is_game_over(self) -> bool:
+		return self.checkmate or self.stalemate or self.draw
+
 
 class Color(IntEnum):
 	BLACK = 0
 	WHITE = 1
 
 class Move:
+	"""Represents a single move on the board."""
+
 	def __init__(self, source_x, source_y, dest_x, dest_y, promotion=None):
 		self.source_x = source_x
 		self.source_y = source_y
 		self.dest_x = dest_x
 		self.dest_y = dest_y
-		if(promotion!=None):
+		if promotion is not None:
 			self.promotion = promotion
 
+	def __repr__(self) -> str:
+		cols = "abcdefgh"
+		src = f"{cols[self.source_y]}{8 - self.source_x}"
+		dst = f"{cols[self.dest_y]}{8 - self.dest_x}"
+		promo = getattr(self, "promotion", "")
+		return f"Move({src}{dst}{promo})"
+
+	def __eq__(self, other):
+		if not isinstance(other, Move):
+			return NotImplemented
+		return (
+			self.source_x == other.source_x
+			and self.source_y == other.source_y
+			and self.dest_x == other.dest_x
+			and self.dest_y == other.dest_y
+			and getattr(self, "promotion", None) == getattr(other, "promotion", None)
+		)
+
+	def __hash__(self):
+		return hash((self.source_x, self.source_y, self.dest_x, self.dest_y, getattr(self, "promotion", None)))
+
+
 class Chess_piece:
+	"""Base class for all chess pieces."""
+
 	def __str__(self):
 		pieces = {
 			'P': '♙',
@@ -528,6 +664,9 @@ class Chess_piece:
 		}
 
 		return pieces[self.fen_letter]
+
+	def __repr__(self) -> str:
+		return f"{self.__class__.__name__}({self.fen_letter}, {self.x}, {self.y})"
 
 	def update(self, board):
 		self.board = board
@@ -643,7 +782,10 @@ class Chess_piece:
 		self.y = dest_y
 		self.board.en_passant_pawn=None
 
+
 class Pawn(Chess_piece):
+	"""Pawn piece with en-passant, double-push, and promotion logic."""
+
 	def __init__(self, color, x, y, board):
 		self.color = color
 		self.x = x
@@ -737,13 +879,13 @@ class Pawn(Chess_piece):
 	def play_move(self, move):
 
 		if(all(0 <= value <= 7 for value in (self.y-1,)) and
-			self.board.squares[self.x][self.y-1]==self.board.en_passant_pawn and dest_y==self.y-1):
-			
+			self.board.squares[self.x][self.y-1]==self.board.en_passant_pawn and move.dest_y==self.y-1):
+
 			self.board.squares[self.x][self.y-1]=" "
 	
 		elif(all(0 <= value <= 7 for value in (self.y+1,)) and
-			self.board.squares[self.x][self.y+1]==self.board.en_passant_pawn and dest_y==self.y+1):
-			
+			self.board.squares[self.x][self.y+1]==self.board.en_passant_pawn and move.dest_y==self.y+1):
+
 			self.board.squares[self.x][self.y+1]=" "
 
 		super().play_move(move)
@@ -772,7 +914,10 @@ class Pawn(Chess_piece):
 		self.has_moved = True
 		self.board.half_move = 0
 
+
 class Rook(Chess_piece):
+	"""Rook piece with castling-rights tracking."""
+
 	def __init__(self, color, x, y, board):
 		self.color = color
 		self.x = x
@@ -786,30 +931,6 @@ class Rook(Chess_piece):
 
 	def attacked_squares(self):
 		return [(move.dest_x, move.dest_y) for move in self.avail_moves()]
-
-		# values = [
-		# 	# ↑
-		# 	zip(reversed(range(0, self.x)), [self.y] * self.x),
-		# 	# ↓ 
-		# 	zip(range(self.x+1, 8), [self.y] * (8-self.x-1)),
-		# 	# ←
-		# 	zip([self.x] * (self.y), reversed(range(0, self.y))),
-		# 	# → 
-		# 	zip([self.x] * (8-self.y-1), range(self.y+1, 8))
-		# ]
-
-		# squares = []
-		# for direction in values:
-		# 	for x, y in direction:
-		# 		if(self.board.squares[x][y] == " "):
-		# 			squares.append((self.x, self.y, x, y))
-		# 		elif(self.board.squares[x][y].color != self.color):
-		# 			squares.append((self.x, self.y, x, y))
-		# 			break
-		# 		else:
-		# 			break
-
-		# return squares
 
 	def avail_moves(self):
 		values = [
@@ -843,7 +964,10 @@ class Rook(Chess_piece):
 
 		self.has_moved = True
 
+
 class Bishop(Chess_piece):
+	"""Bishop piece — moves diagonally."""
+
 	def __init__(self, color, x, y, board):
 		self.color = color
 		self.x = x
@@ -856,32 +980,6 @@ class Bishop(Chess_piece):
 
 	def attacked_squares(self):
 		return [(move.dest_x, move.dest_y) for move in self.avail_moves()]
-
-		# values = [
-		# 	# ↖
-		# 	zip(reversed(range(0, self.x)), reversed(range(0, self.y))),
-		# 	# ↘
-		# 	zip(range(self.x+1, 8), range(self.y+1, 8)),
-		# 	# ↙ 
-		# 	zip(range(self.x+1, 8), reversed(range(0, self.y))),
-		# 	# ↗
-		# 	zip(reversed(range(0, self.x)), range(self.y+1, 8))
-		# ]
-
-		# attacked_squares = []
-		# for direction in values:
-		# 	for x, y in direction:
-		# 		if(self.board.squares[x][y] == " " or
-		# 			isinstance(self.board.squares[x][y], King)):
-
-		# 			attacked_squares.append((self.x, self.y, x, y))
-		# 		elif(self.board.squares[x][y].color != self.color):
-		# 			attacked_squares.append((self.x, self.y, x, y))
-		# 			break	
-		# 		else:
-		# 			break
-
-		# return attacked_squares
 
 	def avail_moves(self):
 		values = [
@@ -905,7 +1003,9 @@ class Bishop(Chess_piece):
 	def play_move(self, move):
 		super().play_move(move)
 
+
 class Knight(Chess_piece):
+	"""Knight piece — L-shaped jumps."""
 	def __init__(self, color, x, y, board):
 		self.color = color
 		self.x = x
@@ -947,7 +1047,9 @@ class Knight(Chess_piece):
 	def play_move(self, move):
 		super().play_move(move)
 
+
 class Queen(Chess_piece):
+	"""Queen piece — combines Rook + Bishop movement."""
 	def __init__(self, color, x, y, board):
 		self.color = color
 		self.x = x
@@ -967,7 +1069,9 @@ class Queen(Chess_piece):
 	def play_move(self, move):
 		super().play_move(move)
 
+
 class King(Chess_piece):
+	"""King piece with castling logic."""
 	def __init__(self, color, x, y, board):
 		self.color = color
 		self.x = x
@@ -1076,55 +1180,122 @@ class King(Chess_piece):
 		self.can_castle_kingside = False
 		self.can_castle_queenside = False
 
+
 class InvalidMoveException(Exception):
+	"""Raised when the player enters an illegal or malformed move."""
 	pass
 
+
+# =====================================================================
+# Interactive game loop
+# =====================================================================
+
+def print_help():
+	"""Display available commands."""
+	print(Fore.CYAN + "  Commands:" + Style.RESET_ALL)
+	print("    e2e4     — move piece from e2 to e4 (k, b, q, r after move for promotion)")
+	print("    undo     — take back the last move")
+	print("    new      — start a new game")
+	print("    perft N  — run perft to depth N")
+	print("    help     — show this message")
+	print("    quit     — exit the program")
+	print()
+
+
 def main():
-	# rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8
-	#for bug test after promotion and checks, recursion depths -> combinations
-	#1 -> 44
-	#2 -> 1486
-	#3 -> 62379
-	#4 -> 2103487
-	#5 -> 89941194
+	"""Run an interactive chess game in the terminal."""
+
+	# # rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8
+	# #for bug test after promotion and checks, recursion depths -> combinations
+	# #1 -> 44
+	# #2 -> 1486
+	# #3 -> 62379
+	# #4 -> 2103487
+	# #5 -> 89941194
 
 	board = Board("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8")
+	board.display()
+	print_help()
 
-	# while True:
-	# 	board.display()
+	while not board.is_game_over():
+		turn = Fore.WHITE + "White" + Style.RESET_ALL if board.white_turn else Fore.LIGHTBLACK_EX + "Black" + Style.RESET_ALL
+		try:
+			user_input = input(f"  {turn}'s move: ").strip().lower()
+		except (EOFError, KeyboardInterrupt):
+			print("\n  Game ended.")
+			return
 
-	# 	check_move = ""
-	# 	while(True):
-	# 		event = keyboard.read_event()
-	# 		if event.event_type == keyboard.KEY_DOWN:
-	# 			check_move += event.name
+		if not user_input:
+			continue
+		elif user_input == "quit":
+			print("  Goodbye!")
+			return
+		elif user_input == "help":
+			print_help()
+			continue
+		elif user_input == "undo":
+			board.pop()
+			board.display()
+			continue
+		elif user_input == "new":
+			board = Board()
+			board.display()
+			continue
+		elif user_input.startswith("perft"):
+			parts = user_input.split()
+			depth = int(parts[1]) if len(parts) > 1 else 3
+			start = time.time()
+			count = board.recursion_test(depth)
+			elapsed = round(time.time() - start, 2)
+			print(f"  Perft({depth}) = {count:,}  ({elapsed}s)")
+			continue
+		elif len(user_input) < 4:
+			print(Fore.YELLOW + "  Enter a move like e2e4 (or type 'help')" + Style.RESET_ALL)
+			continue
 
-	# 		try:
-	# 			move = board.is_move_valid(check_move)
-	# 			if(move == None):
-	# 				continue
-				
-	# 			if(len(move)==5):
-	# 				if(move[4]):
-	# 					promotion = ""
-	# 					print("(q, r, b, n): ", end= "")
-	# 					sys.stdout.flush()
-	# 					while(promotion not in ["q", "r", "b", "n"]):
-	# 						event = keyboard.read_event()
-	# 						if event.event_type == keyboard.KEY_DOWN:
-	# 							promotion = event.name
-	# 					move[4] = promotion
-	# 				move = Move(*move)
-	# 				break
-	# 		except Exception as e:
-	# 			# print("\r" + traceback.format_exc(), end= "")				
-	# 			print("\r" + str(e), end= "")
-	# 			check_move = ""
+		try:
+			# Check for inline promotion (e.g. "e7e8q")
+			promotion_char = None
+			move_str = user_input[:4]
+			if len(user_input) >= 5 and user_input[4] in "qrbn":
+				promotion_char = user_input[4]
 
-	# 	board.push(move)
+			result = board.is_move_valid(move_str)
+			if result is None:
+				continue
 
-	start_time = time.time()
-	move_count = board.recursion_test(3)
-	print(str(move_count) + "/62379, ", round(time.time() - start_time, 1), "s")
+			source_x, source_y, dest_x, dest_y, needs_promotion = result
 
-main()
+			if needs_promotion:
+				if promotion_char is None:
+					while promotion_char not in ("q", "r", "b", "n"):
+						promotion_char = input("  Promote to (q/r/b/n): ").strip().lower()
+				result[4] = promotion_char
+
+			move = Move(*result)
+			board.push(move)
+			board.display()
+
+		except InvalidMoveException as e:
+			msg = str(e).strip()
+			if msg:
+				print(Fore.YELLOW + "  " + msg + Style.RESET_ALL)
+
+	# --- Game over messages ---
+	board.display()
+	if board.is_checkmate():
+		winner = "Black" if board.white_turn else "White"
+		print(Fore.GREEN + f"  ♚ Checkmate! {winner} wins!" + Style.RESET_ALL)
+	elif board.is_stalemate():
+		print(Fore.YELLOW + "  ½ Stalemate — the game is a draw." + Style.RESET_ALL)
+	elif board.draw:
+		if board.half_move >= 50:
+			print(Fore.YELLOW + "  ½ Draw by 50-move rule." + Style.RESET_ALL)
+		else:
+			print(Fore.YELLOW + "  ½ Draw by three-fold repetition." + Style.RESET_ALL)
+
+
+if __name__ == "__main__":
+	main()
+
+

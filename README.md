@@ -1,44 +1,79 @@
-# unicode_chess
+# Unicode Chess ♔
 
-A fully functional chess library for Python from scratch, with move generation, 
-move validation, and support for common formats(like python-chess). Can be used 
-in addition to https://github.com/johneliades/chess_cv to create a custom chess 
-engine bot that plays online in order to find its ranking. E.g: engine.py
+A fully functional chess library and terminal game written in Python from
+scratch, featuring Unicode piece rendering, move generation, move validation,
+and FEN support.
 
-![Image of chess](https://github.com/johneliades/unicode_chess/blob/main/preview.png)
+Can also be used as a backend for a custom UCI chess engine (see
+[engine.py](engine.py)) that plays online via
+[chess\_cv](https://github.com/johneliades/chess_cv).
 
-## Clone
+![Preview](https://github.com/johneliades/unicode_chess/blob/main/preview.png)
 
-Clone the repository locally by entering the following command:
-```
+## Features
+
+- **Interactive terminal game** with coloured board, move highlighting, and
+  captured-piece display
+- **Full chess rules** — castling, en passant, pawn promotion, 50-move rule,
+  three-fold repetition, stalemate & checkmate detection
+- **FEN import / export** for loading and saving positions
+- **Perft testing** to verify move-generation correctness
+- **Multi-undo** support
+
+## Setup
+
+```bash
 git clone https://github.com/johneliades/unicode_chess.git
-```
-Or by clicking on the green "Clone or download" button on top and then 
-decompressing the zip.
-
-Windows
-```
-python -m venv .venv && .venv\Scripts\activate && pip install -r requirements.txt && deactivate
+cd unicode_chess
 ```
 
-Linux
-```
-python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && deactivate
+### Windows
+
+```powershell
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-## Run
+### Linux / macOS
 
-Then you can run:
-
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
-.venv\Scripts\activate (or "source .venv/bin/activate" for linux)
+
+## Play
+
+```bash
+python chess.py
+```
+
+### In-game commands
+
+| Command   | Description                       |
+|-----------|-----------------------------------|
+| `e2e4`    | Move piece from e2 to e4          |
+| `e7e8q`   | Promote pawn to queen             |
+| `undo`    | Take back the last move           |
+| `fen`     | Print the current FEN string      |
+| `new`     | Start a new game                  |
+| `perft N` | Run perft to depth *N*            |
+| `help`    | Show available commands           |
+| `quit`    | Exit                              |
+
+## UCI Engine
+
+Build a standalone executable:
+
+```bash
 pyinstaller --onefile engine.py
 ```
 
-To create an engine.exe executable linked to the library that communicates
-via the uci protocol with chess_cv(see above) to transfer the moves of
-the bot to an online chess site like chess.com or lichess.org.
+The resulting `engine.exe` (or `engine` on Linux) speaks the UCI protocol and
+can be connected to any UCI-compatible GUI or to
+[chess\_cv](https://github.com/johneliades/chess_cv).
 
 ## Author
 
-**Eliades John** - *Developer* - [Github](https://github.com/johneliades)
+**Eliades John** — [GitHub](https://github.com/johneliades)
